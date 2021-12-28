@@ -1,5 +1,6 @@
 from datetime import date
 import pandas as pd
+from pandas.core.tools.datetimes import DatetimeScalarOrArrayConvertible
 import numpy as np
 import sys
 from pathlib import Path
@@ -72,7 +73,23 @@ def get_bond_data(
 
     # impute first coupon date if missing
     df['first_coupon_date'] = df['first_coupon_date'].fillna(df['issue_dt'])
-    df['bond_duration'] = df['mature_dt'] - df['first_coupon_date_01']
-    df['bond_duration_years'] = np.round(df['bond_duration'] / np.timedelta64(1,'Y'))
+    df['bond_duration'] = df['mature_dt'] - df['first_coupon_date']    
     
+    return df
+
+# For sampling business Days
+#    from pandas.tseries.offsets import BDay
+#    pd.date_range('2015-07-01', periods=5, freq=BDay())
+
+def get_price(
+    path: Path = Path("../data/raw/price.csv"),
+) -> pd.DataFrame:
+    logger.info('Load bond price data')
+    
+    df = read_csv(path)
+    df['reference_identifier'] = df['reference_identifier'].astype('string')
+    df['ccy'] = df['ccy'].astype('string')
+    df['rate_dt'] =  pd.to_datetime(df['rate_dt'])
+    df['mid'] = (df['bid'] + df['offer'])  / 2
+    df = df.drop(['bid','offer'], axis = 1)    
     return df
