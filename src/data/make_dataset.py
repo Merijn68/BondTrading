@@ -7,21 +7,19 @@ from pathlib import Path
 from typing import Tuple, Union
 from loguru import logger
 
-
-
 sys.path.insert(0, "..")
-
-
 
 
 def read_csv(
     path: Path = Path("../data/raw/bonds.csv"),
-    thousands:str = ','    
+    thousands:str = ',',
+    *args,
+    **kwargs    
 ) -> pd.DataFrame:
     logger.info(f"Loading data from {path}")
     df = pd.DataFrame()
     try:
-        df = pd.read_csv(path, thousands=thousands )
+        df = pd.read_csv(path, thousands=thousands, *args, **kwargs )
 
     except Exception as error:      
         logger.error(f"Error loading data: {error}")
@@ -40,7 +38,7 @@ def get_bond_data(
     df = read_csv(path)
     
     # Drop unneeded columns
-    df = df.drop(['bondname','bond_ext_name', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
+    df = df.drop(['bondname','bond                                                                                                                                                                    _ext_name', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
 
     # Correct columns types
     for column in ['cfi_code','isin','ccy','issuer_name','coupon_frq','country_name','issue_rating']:
@@ -54,26 +52,11 @@ def get_bond_data(
     df['country_name'] = df['country_name'].str.strip()    
     
     # Total Issue amount '-' should be converted to 0
-    df = df.rename(columns={' tot_issue ': 'tot_issue'})  
+    df = df.rename(columns={' tot_issue ': 'tot_issue', 'country_name':'country'})  
+
     df.loc[df['tot_issue'] == '-', 'tot_issue'] = '0'  
     df['tot_issue']= df['tot_issue'].str.replace(',','').str.replace('-','0').astype('float')    
     
-    return df
-
-
-# Subset data on country name and currency
-def subset_bonds(
-        df: pd.DataFrame,
-        country: dict,
-        ccy: str = 'EUR'         
-) -> pd.DataFrame:
-    
-    df = df[df['country_name'].isin(country_dict.values())]
-    # Lets select only EUR bonds - we don't want to complicate things with FX volatility
-           
-    if ccy:
-        df = df[df['ccy'] == ccy]
-
     return df
 
 
@@ -98,19 +81,11 @@ def impute_bonds(
 
     # impute first coupon date if missing
     df['first_coupon_date'] = df['first_coupon_date'].fillna(df['issue_dt'])
-    df['bond_duration'] = df['mature_dt'] - df['first_coupon_date']    
+    # Bond duration (estimation)
+    df['bond_duration'] = df['mature_dt'] - df['issue_dt']    
 
     return df
     
-def save_bonds(
-    df: pd.DataFrame,    
-) -> pd.DataFrame:
-    # Store processed data
-    logger.info('Save preprocessed bond data')
-    try:
-        df.to_csv('../data/processed/bonds.csv')
-    except Exception as error:      
-        logger.error(f"Error saving data: {error}")
 
 # For sampling business Days
 #    from pandas.tseries.offsets import BDay
@@ -156,8 +131,7 @@ def impute_price(
     df = df[df['mid'] != 99.999]    
     return df
 
-
-def get_yield_curves(
+def get_yield(
     path: Path = Path("../data/raw/yield.csv"),
 ) -> pd.DataFrame:
     logger.info('Load goverment yield curve data')
@@ -180,54 +154,149 @@ def get_yield_curves(
     
     return df    
 
-def impute_yield_curves(
+
+def impute_yield(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
 
     logger.info('Impute yield curve')
-    
+
     # Drop MM curves only Bond Based curves are actually correct
     df = df[df['ratename'].str.contains('BB')]    
     
     return df
 
-def save_yield_curves(
-    df: pd.DataFrame,    
-):
-    logger.info('Save preprocessed yield curve data')
-    try:
-        df.to_csv('../data/processed/yield.csv')
-    except Exception as error:      
-        logger.error(f"Error saving data: {error}")
 
     
+def get_inflation(    
+    countrydict: dict = {'DE': 'Germany','FR': 'France','ES': 'Spain','IT': 'Italy','US': 'United States'}
+)    -> pd.DataFrame:
+    logger.info('Load goverment yield curve data')
+    
+    df = pd.DataFrame()
+    for country in countrydict:
+        path = Path(f"../data/raw/{country} Inflation.csv")
+        dfc = read_csv(path, skiprows = 2,  header=None)
+        if not dfc.empty:
+            dfc = dfc.iloc[:,2:17]        
+            dfc.columns = ['rate_dt','1 YEAR','2 YEARS', '3 YEARS','4 YEARS', '5 YEARS','6 YEARS','7 YEARS','8 YEARS','9 YEARS','10 YEARS',
+            '15 YEARS','20 YEARS','25 YEARS','30 YEARS']
+            dfc['country'] = countrydict[country]
 
+            df = pd.concat([df,dfc])
+
+    df = df.melt(id_vars= ['country', 'rate_dt'],var_name = 'timeband', value_name = 'inflation')
+    df['ratename'] = 'Inflation'  
+
+    for column in ['ratename','timeband','country']:
+        df[column] = df[column].astype('string')
+    for column in ['rate_dt']:
+        df[column] = pd.to_datetime(df[column])
+    return df
+
+def impute_inflation(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+
+    logger.info('Impute inflation curve')
+
+    # Drop all NANs    
+    df = df[~df['inflation'].isnull()]
+    
+    return df
 
 def make_data(
 ):
     ''' Generate all data preprocessing '''
     df_bonds = get_bond_data()
     df_bonds = impute_bonds(df_bonds)
-    save_bonds(df_bonds)
+    save_pkl('bonds', df_bonds)
+
+    df_price = get_price()
+    df_price = impute_price(df_price)
+    save_pkl('price', df_price)
+
+    df_yield = get_yield()
+    df_yield = impute_yield(df_yield)    
+    save_pkl('yield', df_yield)
+
+    df_inflation = get_inflation()
+    df_inflation = impute_inflation(df_inflation)    
+    save_pkl('inflation', df_inflation)
 
 
-
-
-def get_data(    
-    ids: np.array  = [],    
+def join_bond_data(    
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame,
+    ids: np.array  = [],  
+    ccy: str = 'EUR'  
 ) -> pd.DataFrame:
     ''' 
         Get a join of bond en price data for selected bonds - for further analyses
     '''
-    # Load all EUR bonds
-    df_bonds = get_bond_data(ccy = 'EUR')
-
-    df_bonds = df_bonds.drop('ccy', axis = 1)
+    # Load only 1 curremcy
+    df_bonds = df_bonds[df_bonds['ccy'] == ccy]
+    df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
+    df_bonds = df_bonds.drop('ccy', axis = 1)      
     
-    # Get bond prices of the selected bonds
-    df_price = get_price(df_bonds.index.to_list())
+    df_price = df_price[df_price['ccy'] == ccy]
+    df_price = df_price[df_price['reference_identifier'].isin(ids)]
 
-    df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_index=True,  how = 'left')
-    df['reference_identifier'] = df['reference_identifier'].astype('string')
+    df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
+    
     return df
 
+def join_full(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame,
+    df_yield: pd.DataFrame,
+    df_inflation: pd.DataFrame
+) -> pd.DataFrame:
+    ids: np.array  = [],  
+    ccy: str = 'EUR'  
+
+    # Load only 1 curremcy
+    df_bonds = df_bonds[df_bonds['ccy'] == ccy]
+    df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
+    df_bonds = df_bonds.drop('ccy', axis = 1)      
+    
+    df_price = df_price[df_price['ccy'] == ccy]
+    df_price = df_price[df_price['reference_identifier'].isin(ids)]
+
+    df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
+    
+    df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
+
+    df = df.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True)
+    return df
+    
+
+def save_pkl(
+    name: str,
+    df: pd.DataFrame 
+):
+    # Store processed data
+    logger.info(f'Save preprocessed {name} data')
+    try:
+        df.to_pickle(f'../data/processed/{name}.pkl')
+    except Exception as error:      
+        logger.error(f"Error saving {name} data: {error}")
+
+def read_pkl(
+    name: str,
+    path = Path("../data/processed/"),    
+    filename_suffix = 'pkl'
+) -> pd.DataFrame:
+    # load processed data
+    logger.info(f'Load preprocessed {name} data')
+    df = pd.DataFrame()
+    if not path.is_dir():
+        logger.error(f'Directory {path} not found')
+    else:
+        path = Path(path, name + "." + filename_suffix)
+        if not path.exists():
+            logger.error(f'File {path} not found')
+        else:                
+            df = pd.read_pickle(path)
+    
+    return df
