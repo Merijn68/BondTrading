@@ -38,7 +38,7 @@ def get_bond_data(
     df = read_csv(path)
     
     # Drop unneeded columns
-    df = df.drop(['bondname','bond                                                                                                                                                                    _ext_name', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
+    df = df.drop(['bondname','bond_ext_name', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
 
     # Correct columns types
     for column in ['cfi_code','isin','ccy','issuer_name','coupon_frq','country_name','issue_rating']:
@@ -119,6 +119,10 @@ def get_price(
     # Deze voegen we samen
     df['mid'] = (df['bid'] + df['offer'])  / 2
     df = df.drop(['bid','offer'], axis = 1)    
+
+    # Data van 30-7 zit 2x in de csv
+    df = df.drop_duplicates()
+
     
     return df
 
@@ -250,24 +254,35 @@ def join_full(
     df_bonds: pd.DataFrame,
     df_price: pd.DataFrame,
     df_yield: pd.DataFrame,
-    df_inflation: pd.DataFrame
+    df_inflation: pd.DataFrame,
+    ccy: str = 'EUR',  
+    ids: np.array  = []
 ) -> pd.DataFrame:
-    ids: np.array  = [],  
-    ccy: str = 'EUR'  
+    
+    # Load only 1 currency
+    df_bonds = df_bonds[df_bonds['ccy'] == ccy]    
+    df_bonds = df_bonds.drop('ccy', axis = 1)  
 
-    # Load only 1 curremcy
-    df_bonds = df_bonds[df_bonds['ccy'] == ccy]
-    df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
-    df_bonds = df_bonds.drop('ccy', axis = 1)      
+    print('number of bonds ', df_bonds.size)
     
     df_price = df_price[df_price['ccy'] == ccy]
-    df_price = df_price[df_price['reference_identifier'].isin(ids)]
 
+    print('number of prices ', df_price.size)
+
+    if ids:
+        print ('only specific isins...')
+        df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
+        df_price = df_price[df_price['reference_identifier'].isin(ids)]
+        
     df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
-    
-    df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
 
-    df = df.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True)
+    print('number of df ', df.size)
+
+    #df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
+    #df = df.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True)
+
+    #print('number including inflation df ', df.size)
+
     return df
     
 
