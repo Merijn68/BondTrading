@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Tuple, Union
 from loguru import logger
+from src.features import build_features
 
 sys.path.insert(0, "..")
 
@@ -228,6 +229,18 @@ def make_data(
     df_inflation = impute_inflation(df_inflation)    
     save_pkl('inflation', df_inflation)
 
+    df_bpi = join_inflation(df_bonds, df_price, df_inflation)
+    save_pkl('bpi', df_bpi)
+
+    df_bpy = join_yield(df_bonds, df_price, df_yield)
+    save_pkl('bpy', df_bpy)
+
+    df_bpiy = fulljoin(df_bonds, df_price, df_inflation, df_yield)
+
+    df_bpiy = build_features.add_duration(df_bpiy)
+    df_bpiy = build_features.add_bid_offer_spread(df_bpiy)
+    df_bpiy = build_features.add_term_spread(df_bpiy)
+    save_pkl('bpiy', df_bpiy)
 
 # def join_bond_data(    
 #     df_bonds: pd.DataFrame,
