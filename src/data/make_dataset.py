@@ -111,16 +111,12 @@ def get_price(
     for column in ['rate_dt' ]:
         df[column] = pd.to_datetime(df[column])
 
-    # Filter on referenceId
-    #if ids:
-    #    df = df[df['reference_identifier'].isin(ids)]
-
     # Bid en Offer zijn overbodig want gelijk in bron systeem.
     # Deze voegen we samen
     df['mid'] = (df['bid'] + df['offer'])  / 2
     df = df.drop(['bid','offer'], axis = 1)    
 
-    # Data van 30-7 zit 2x in de csv
+    # Data van 30-7 zit 2x in de bron
     df = df.drop_duplicates()
 
     
@@ -156,6 +152,10 @@ def get_yield(
     for column in ['rate_dt','actual_dt' ]:
         df[column] = pd.to_datetime(df[column])
     
+    # Data bevat meerdere waarnemingen per dag. Bewaar alleen de laatste
+    df = df.groupby(['country','rate_dt','timeband']).nth(-1)
+    df = df.reset_index()
+
     return df    
 
 
@@ -229,62 +229,89 @@ def make_data(
     save_pkl('inflation', df_inflation)
 
 
-def join_bond_data(    
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame,
-    ids: np.array  = [],  
-    ccy: str = 'EUR'  
-) -> pd.DataFrame:
-    ''' 
-        Get a join of bond en price data for selected bonds - for further analyses
-    '''
-    # Load only 1 curremcy
-    df_bonds = df_bonds[df_bonds['ccy'] == ccy]
-    df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
-    df_bonds = df_bonds.drop('ccy', axis = 1)      
+# def join_bond_data(    
+#     df_bonds: pd.DataFrame,
+#     df_price: pd.DataFrame,
+#     ids: np.array  = [],  
+#     ccy: str = 'EUR'  
+# ) -> pd.DataFrame:
+#     ''' 
+#         Get a join of bond en price data for selected bonds - for further analyses
+#     '''
+#     # Load only 1 curremcy
+#     df_bonds = df_bonds[df_bonds['ccy'] == ccy]
+#     df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
+#     df_bonds = df_bonds.drop('ccy', axis = 1)      
     
-    df_price = df_price[df_price['ccy'] == ccy]
-    df_price = df_price[df_price['reference_identifier'].isin(ids)]
+#     df_price = df_price[df_price['ccy'] == ccy]
+#     df_price = df_price[df_price['reference_identifier'].isin(ids)]
 
+#     df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
+    
+#     return df
+
+def join_price(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame
+) -> pd.DataFrame:
+    
+    df_bonds = df_bonds.drop('ccy', axis = 1)                          
     df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
-    
-    return df
-
-def join_full(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame,
-    df_yield: pd.DataFrame,
-    df_inflation: pd.DataFrame,
-    ccy: str = 'EUR',  
-    ids: np.array  = []
-) -> pd.DataFrame:
-    
-    # Load only 1 currency
-    df_bonds = df_bonds[df_bonds['ccy'] == ccy]    
-    df_bonds = df_bonds.drop('ccy', axis = 1)  
-
-    print('number of bonds ', df_bonds.size)
-    
-    df_price = df_price[df_price['ccy'] == ccy]
-
-    print('number of prices ', df_price.size)
-
-    if ids:
-        print ('only specific isins...')
-        df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
-        df_price = df_price[df_price['reference_identifier'].isin(ids)]
         
-    df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
-
-    print('number of df ', df.size)
-
-    #df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
-    #df = df.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True)
-
-    #print('number including inflation df ', df.size)
-
     return df
+
+def join_inflation(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame,
+    df_inflation: pd.DataFrame,        
+) -> pd.DataFrame:
+        
+    df = join_price(df_bonds, df_price)
+
+    df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
+    df = df.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+
+    return df    
+
+def join_yield(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame,
+    df_yield: pd.DataFrame,    
+) -> pd.DataFrame:
+
+    df = join_price(df_bonds, df_price)
+
+    df_yield = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
+    df = df.merge(df_yield, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+    return df    
+
+def fulljoin(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame,
+    df_inflation: pd.DataFrame,    
+    df_yield: pd.DataFrame,        
+) -> pd.DataFrame:
+
+    df = join_price(df_bonds, df_price)
+
+    df_inflation_pivot = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
     
+    df_inflation_pivot.columns = [''.join(('inflation_',col)).replace('YEARS','').replace('YEAR','').strip() for col in df_inflation_pivot.columns]
+    columns = df_inflation_pivot.columns.to_list()
+    columns.sort(key=lambda x: int(x[10:]))
+    df_inflation_pivot = df_inflation_pivot[columns]
+
+    df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
+    df_yield_pivot.columns = [''.join(('yield_',''.join(tup))).replace('YEARS','').replace('YEAR','').strip() for tup in df_yield_pivot.columns]
+    columns = df_yield_pivot.columns.to_list()
+    columns.sort(key=lambda x: int(x[6:].replace('bid','').replace('offer','')))
+    df_yield_pivot = df_yield_pivot[columns]
+
+    df = df.merge(df_inflation_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+    df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+
+    return df    
+
 
 def save_pkl(
     name: str,
@@ -294,6 +321,7 @@ def save_pkl(
     logger.info(f'Save preprocessed {name} data')
     try:
         df.to_pickle(f'../data/processed/{name}.pkl')
+        df.to_csv(f'../data/processed/{name}.csv')
     except Exception as error:      
         logger.error(f"Error saving {name} data: {error}")
 
