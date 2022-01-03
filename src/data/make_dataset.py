@@ -167,7 +167,15 @@ def impute_yield(
     logger.info('Impute yield curve')
 
     # Drop MM curves only Bond Based curves are actually correct
-    df = df[df['ratename'].str.contains('BB')]    
+    df = df[df['ratename'].str.contains('BB')].copy()    
+
+    # Herberekenen actual dt -> zodat deze in lijn is met de inflatie data (geen rekening houden met holidays)     
+    df['offset'] = df['timeband'].str.extract('(\d+)')
+    df['actual_dt'] = df['rate_dt'] + df['offset'].astype('timedelta64[Y]')
+
+    # De timeband omzetten naar een timedelta.
+    df['time'] = df['actual_dt'] - df['rate_dt']
+    df = df.drop(columns = 'offset')
     
     return df
 
@@ -203,11 +211,21 @@ def impute_inflation(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
 
+
     logger.info('Impute inflation curve')
 
     # Drop all NANs    
-    df = df[~df['inflation'].isnull()]
+    df = df[~df['inflation'].isnull()].copy()
+
+    # Translate timeband to actual_dt
+    df['offset'] = df['timeband'].str.extract('(\d+)')
+    df['actual_dt'] = df['rate_dt'] + df['offset'].astype('timedelta64[Y]')
     
+    # De timeband omzetten naar een timedelta.
+    df['time'] = df['actual_dt'] - df['rate_dt']
+    
+    df = df.drop(columns = 'offset')
+
     return df
 
 def make_data(
@@ -229,6 +247,7 @@ def make_data(
     df_inflation = impute_inflation(df_inflation)    
     save_pkl('inflation', df_inflation)
 
+
     df_bpi = join_inflation(df_bonds, df_price, df_inflation)
     save_pkl('bpi', df_bpi)
 
@@ -241,27 +260,6 @@ def make_data(
     df_bpiy = build_features.add_bid_offer_spread(df_bpiy)
     df_bpiy = build_features.add_term_spread(df_bpiy)
     save_pkl('bpiy', df_bpiy)
-
-# def join_bond_data(    
-#     df_bonds: pd.DataFrame,
-#     df_price: pd.DataFrame,
-#     ids: np.array  = [],  
-#     ccy: str = 'EUR'  
-# ) -> pd.DataFrame:
-#     ''' 
-#         Get a join of bond en price data for selected bonds - for further analyses
-#     '''
-#     # Load only 1 curremcy
-#     df_bonds = df_bonds[df_bonds['ccy'] == ccy]
-#     df_bonds = df_bonds[df_bonds['isin'].isin(ids)]
-#     df_bonds = df_bonds.drop('ccy', axis = 1)      
-    
-#     df_price = df_price[df_price['ccy'] == ccy]
-#     df_price = df_price[df_price['reference_identifier'].isin(ids)]
-
-#     df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
-    
-#     return df
 
 def join_price(
     df_bonds: pd.DataFrame,
@@ -286,16 +284,24 @@ def join_inflation(
 
     return df    
 
-def join_yield(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame,
+def join_yield(    
+    df: pd.DataFrame,
     df_yield: pd.DataFrame,    
 ) -> pd.DataFrame:
+    
+    # df_yield['offset'] = df_yield['timeband'].str.extract('(\d+)')
 
-    df = join_price(df_bonds, df_price)
+    # Join yield
+    df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['offset'], values = ['bid','offer'])
+    df_yield_pivot.columns = [''.join(('y_',''.join(tup))).strip() for tup in df_yield_pivot.columns]
+    columns = df_yield_pivot.columns.to_list()
+    columns.sort(key=lambda x: int(x.replace('y_bid','').replace('y_offer','')))
+    df_yield_pivot = df_yield_pivot[columns]
+    df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
 
-    df_yield = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
-    df = df.merge(df_yield, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+    #df_yield = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
+    #df = df.merge(df_yield, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+
     return df    
 
 def fulljoin(
@@ -303,25 +309,33 @@ def fulljoin(
     df_price: pd.DataFrame,
     df_inflation: pd.DataFrame,    
     df_yield: pd.DataFrame,        
+    df_countryspread: pd.DataFrame,  
 ) -> pd.DataFrame:
 
+    # Join bond price
     df = join_price(df_bonds, df_price)
 
-    df_inflation_pivot = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
-    
+
+    # Join inflation
+    df_inflation_pivot = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')    
     df_inflation_pivot.columns = [''.join(('inflation_',col)).replace('YEARS','').replace('YEAR','').strip() for col in df_inflation_pivot.columns]
     columns = df_inflation_pivot.columns.to_list()
     columns.sort(key=lambda x: int(x[10:]))
     df_inflation_pivot = df_inflation_pivot[columns]
 
+    df = df.merge(df_inflation_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+
+    # Join yield
     df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
     df_yield_pivot.columns = [''.join(('yield_',''.join(tup))).replace('YEARS','').replace('YEAR','').strip() for tup in df_yield_pivot.columns]
     columns = df_yield_pivot.columns.to_list()
     columns.sort(key=lambda x: int(x[6:].replace('bid','').replace('offer','')))
     df_yield_pivot = df_yield_pivot[columns]
 
-    df = df.merge(df_inflation_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
     df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+
+    # Join country spread    
+    df_countryspread = pd.pivot(df_countryspread, index = ['rate_dt'], columns = ['timeband'])
 
     return df    
 
