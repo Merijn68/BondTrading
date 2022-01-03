@@ -153,6 +153,8 @@ def get_yield(
     for column in ['rate_dt','actual_dt' ]:
         df[column] = pd.to_datetime(df[column])
     
+    df['timeband'] = df['timeband'].str.strip()
+
     # Data bevat meerdere waarnemingen per dag. Bewaar alleen de laatste
     df = df.groupby(['country','rate_dt','timeband']).nth(-1)
     df = df.reset_index()
@@ -247,20 +249,17 @@ def make_data(
     df_inflation = impute_inflation(df_inflation)    
     save_pkl('inflation', df_inflation)
 
+    df_bp = join_price(df_bonds,df_price )
+    df_bp = build_features.add_duration(df_bp)
 
-    df_bpi = join_inflation(df_bonds, df_price, df_inflation)
-    save_pkl('bpi', df_bpi)
+    save_pkl('bp', df_bp)
 
-    df_bpy = join_yield(df_bonds, df_price, df_yield)
+    df_bpy = join_yield(df_bp, df_yield)    
+    df_bpy = build_features.add_term_spread(df_bpy)
+    df_bpy = build_features.add_bid_offer_spread(df_bpy)
     save_pkl('bpy', df_bpy)
 
-    df_bpiy = fulljoin(df_bonds, df_price, df_inflation, df_yield)
-
-    df_bpiy = build_features.add_duration(df_bpiy)
-    df_bpiy = build_features.add_bid_offer_spread(df_bpiy)
-    df_bpiy = build_features.add_term_spread(df_bpiy)
-    save_pkl('bpiy', df_bpiy)
-
+    
 def join_price(
     df_bonds: pd.DataFrame,
     df_price: pd.DataFrame
@@ -289,7 +288,7 @@ def join_yield(
     df_yield: pd.DataFrame,    
 ) -> pd.DataFrame:
     
-    # df_yield['offset'] = df_yield['timeband'].str.extract('(\d+)')
+    df_yield['offset'] = df_yield['timeband'].str.extract('(\d+)')
 
     # Join yield
     df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['offset'], values = ['bid','offer'])
@@ -299,9 +298,7 @@ def join_yield(
     df_yield_pivot = df_yield_pivot[columns]
     df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
 
-    #df_yield = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
-    #df = df.merge(df_yield, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
+    
     return df    
 
 def fulljoin(
