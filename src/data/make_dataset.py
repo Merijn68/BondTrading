@@ -1,3 +1,9 @@
+"""
+    Pre process data from raw to processed data
+
+"""
+
+
 import pandas as pd
 import numpy as np
 #from pandas.core.tools.datetimes import Datetime
@@ -49,12 +55,14 @@ def get_bond_data(
         df[column] = pd.to_datetime(df[column])
        
     # Remove trailing spaces
-    df['isin'] = df['isin'].str.strip()
-    df['country_name'] = df['country_name'].str.strip()    
-    
+    for col in ['isin','coupon_frq','country_name']:
+        df[col] = df[col].str.strip()
+        
     # Total Issue amount '-' should be converted to 0
+    # rename country_name to country
     df = df.rename(columns={' tot_issue ': 'tot_issue', 'country_name':'country'})  
 
+    # Save tot_issue as amount
     df.loc[df['tot_issue'] == '-', 'tot_issue'] = '0'  
     df['tot_issue']= df['tot_issue'].str.replace(',','').str.replace('-','0').astype('float')    
     
@@ -86,11 +94,7 @@ def impute_bonds(
     df['bond_duration'] = df['mature_dt'] - df['issue_dt']    
 
     return df
-    
-
-# For sampling business Days
-#    from pandas.tseries.offsets import BDay
-#    pd.date_range('2015-07-01', periods=5, freq=BDay())
+ 
 
 def get_price(
     ids: np.array  = [],
@@ -251,6 +255,15 @@ def make_data(
 
     df_bp = join_price(df_bonds,df_price )
     df_bp = build_features.add_duration(df_bp)
+    
+    # Drop columns die in eerste instantie niet nodig zijn voor Tensorflow
+    df_bp = df_bp.drop(['ccy','isin','issuer_name'], axis = 1)
+    df_bp = build_features.encode_coupon_freq(df_bp)    
+    df_bp = build_features.encode_cfi(df_bp)
+    df_bp['bond_duration'] = df_bp['bond_duration'].dt.days
+    df_bp['remain_duration'] = df_bp['remain_duration'].dt.days
+
+    df_bp = build_features.encode_onehot(df_bp,'issue_rating')
 
     save_pkl('bp', df_bp)
 
@@ -333,6 +346,7 @@ def fulljoin(
 
     # Join country spread    
     df_countryspread = pd.pivot(df_countryspread, index = ['rate_dt'], columns = ['timeband'])
+        
 
     return df    
 
@@ -366,4 +380,14 @@ def read_pkl(
         else:                
             df = pd.read_pickle(path)
     
+    return df
+
+
+def read_single_bond(
+    isin: str
+) -> pd.DataFrame:
+
+    df = read_pkl('bp')
+    df = df[df['reference_identifier'] == isin].copy()
+
     return df

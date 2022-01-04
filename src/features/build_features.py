@@ -5,18 +5,61 @@ import sys
 from pathlib import Path
 from typing import Tuple, Union
 from loguru import logger
+from sklearn.preprocessing import OneHotEncoder
 
 def add_duration(
   df: pd.DataFrame
-):
+) -> pd.DataFrame:
   logger.info('Add remaining duration...')
   df['remain_duration'] = df['mature_dt'] - df['rate_dt'] 
     
   return df
 
+def encode_coupon_freq(
+  df: pd.DataFrame,
+  col: str = 'coupon_frq'
+) -> pd.DataFrame:
+  logger.info(f'Encode coupon frequency {col}')
+  # Tot nu toe 2 waarden: ANNUAL en SEMI ANUAL. Vertalen in Dagen
+  # Encoding year as 364 to be 2x 182
+  freq = { 'ANNUAL': 364, 'SEMI ANNUAL': 182}
+  df[col].map(freq).fillna(0).astype(int)
+
+  return df
+
+def encode_onehot(
+  df: pd.DataFrame,
+  col: str
+) -> pd.DataFrame:
+  ''' We use sklearn module for one hot encoding '''
+  logger.info(f'One Hot Encode column {col}')
+  one_hot_encoder = OneHotEncoder(sparse=False,handle_unknown='ignore')
+  df_enc = pd.DataFrame(one_hot_encoder.fit_transform(df[[col]]),  columns=one_hot_encoder.categories_).add_prefix(col+'_')
+  df_enc.columns = df_enc.columns.get_level_values(0)
+  df = df.join(df_enc)
+
+  df = df.drop(col, axis = 'columns')
+
+  return df
+
+def encode_cfi(
+  df: pd.DataFrame,
+  col: str = 'cfi_code'
+) -> pd.DataFrame:
+
+  logger.info(f'Encode CFI Code column {col}')
+
+  # Split CFI in a column per character
+  for x in range(6):
+    df[col+'_'+str(x)] = df[col].str[x:x+1]
+  
+  # Drop the combined value
+  df = df.drop(col, axis =  'columns')
+  return df        
+
 def add_term_spread(
   df: pd.DataFrame
-):
+) -> pd.DataFrame:
   logger.info('Add term spread...')
   mid_10y = df['y_bid10'] + df['y_offer10'] / 2
   mid_2y= df['y_bid2'] + df['y_offer2'] / 2
