@@ -252,25 +252,41 @@ def make_data(
     df_inflation = get_inflation()
     df_inflation = impute_inflation(df_inflation)    
     save_pkl('inflation', df_inflation)
-
-    df_bp = join_price(df_bonds,df_price )
-    df_bp = build_features.add_duration(df_bp)
     
-    # Drop columns die in eerste instantie niet nodig zijn voor Tensorflow
-    df_bp = df_bp.drop(['ccy','isin','issuer_name'], axis = 1)
-    df_bp = build_features.encode_coupon_freq(df_bp)    
-    df_bp = build_features.encode_cfi(df_bp)
-    df_bp['bond_duration'] = df_bp['bond_duration'].dt.days
-    df_bp['remain_duration'] = df_bp['remain_duration'].dt.days
-
-    df_bp = build_features.encode_onehot(df_bp,'issue_rating')
-
+    df_bp = join_price(df_bonds,df_price )
     save_pkl('bp', df_bp)
+
+    df_tf = build_simple_input(df_bonds, df_price)    
+    save_pkl('tf', df_tf)
 
     df_bpy = join_yield(df_bp, df_yield)    
     df_bpy = build_features.add_term_spread(df_bpy)
     df_bpy = build_features.add_bid_offer_spread(df_bpy)
     save_pkl('bpy', df_bpy)
+
+
+def build_simple_input(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame
+) -> pd.DataFrame:
+    ''' Build a first simple format for tensorflow '''
+
+    df_bp = join_price(df_bonds,df_price )    
+    df_bp = build_features.add_duration(df_bp)    
+
+    df_bp['bond_duration'] = df_bp['bond_duration'].dt.days
+    df_bp['remain_duration'] = df_bp['remain_duration'].dt.days
+
+    # Alle geselecteerde bonds zijn in EUR. Referrence_identifier en ISIN zijn dubbel
+    df_bp = df_bp.drop(['ccy','reference_identifier'], axis = 1)    
+    df_bp = build_features.encode_coupon_freq(df_bp)    
+    df_bp = build_features.encode_cfi(df_bp)
+
+    # Alle string variabelen worden one hot encoded...
+    for column in df_bp.select_dtypes(include=['string']).columns.tolist():
+        df_bp = build_features.encode_onehot(df_bp,column)
+    
+    return df_bp
 
     
 def join_price(
