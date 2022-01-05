@@ -1,8 +1,9 @@
-import seaborn as sns
-from matplotlib import pyplot as plt
-import pandas as pd
-import numpy as np
-import math
+import  seaborn as sns
+from    matplotlib import pyplot as plt
+import  pandas as pd
+import  numpy as np
+import  math
+
 from typing import List, Tuple, Dict, Optional
 
 def countplot(
@@ -15,9 +16,6 @@ def countplot(
     else:
         ax = sns.countplot(data = data, y = x, order = data[x].value_counts().index)
     ax.set(xlabel="", ylabel = "")
-
-
-
 
 def grouped_lineplot(
     data: pd.DataFrame,    
@@ -62,3 +60,11 @@ def boxplot(
     
     # plt.xticks(rotation=90)
 
+def lplot(
+    data: List[pd.DataFrame],        
+    figsize: Tuple[int, int] = (8, 6),
+) -> None:    
+    plt.figure(figsize=figsize)    
+    for line in data:           
+        sns.lineplot(data = line)
+        

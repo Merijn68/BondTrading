@@ -265,30 +265,6 @@ def make_data(
     save_pkl('bpy', df_bpy)
 
 
-def build_simple_input(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame
-) -> pd.DataFrame:
-    ''' Build a first simple format for tensorflow '''
-
-    df_bp = join_price(df_bonds,df_price )    
-    df_bp = build_features.add_duration(df_bp)    
-
-    df_bp['bond_duration'] = df_bp['bond_duration'].dt.days
-    df_bp['remain_duration'] = df_bp['remain_duration'].dt.days
-
-    # Alle geselecteerde bonds zijn in EUR. Referrence_identifier en ISIN zijn dubbel
-    df_bp = df_bp.drop(['ccy','reference_identifier'], axis = 1)    
-    df_bp = build_features.encode_coupon_freq(df_bp)    
-    df_bp = build_features.encode_cfi(df_bp)
-
-    # Alle string variabelen worden one hot encoded...
-    for column in df_bp.select_dtypes(include=['string']).columns.tolist():
-        df_bp = build_features.encode_onehot(df_bp,column)
-    
-    return df_bp
-
-    
 def join_price(
     df_bonds: pd.DataFrame,
     df_price: pd.DataFrame
@@ -398,12 +374,53 @@ def read_pkl(
     
     return df
 
+def build_simple_input(
+    df_bonds: pd.DataFrame,
+    df_price: pd.DataFrame
+) -> pd.DataFrame:
+    ''' Build a simple format for tensorflow '''
+
+    df_bp = join_price(df_bonds,df_price )    
+    df_bp = build_features.add_duration(df_bp)    
+
+    df_bp['bond_duration'] = df_bp['bond_duration'].dt.days
+    df_bp['remain_duration'] = df_bp['remain_duration'].dt.days
+
+    # Alle geselecteerde bonds zijn in EUR. Referrence_identifier en ISIN zijn dubbel
+    df_bp = df_bp.drop(['ccy','reference_identifier'], axis = 1)    
+    df_bp = build_features.encode_coupon_freq(df_bp)    
+    df_bp = build_features.encode_cfi(df_bp)
+
+    # Alle string variabelen worden one hot encoded...
+    for column in df_bp.select_dtypes(include=['string']).columns.tolist():
+        df_bp = build_features.encode_onehot(df_bp,column)
+    
+    return df_bp
+
 
 def read_single_bond(
-    isin: str
+    isin:   str,
+    train_perc  :  float = 0.70,
+    val_perc    :  float = 0.20,
+    test_perc   :  float = 0.10,
 ) -> pd.DataFrame:
 
-    df = read_pkl('bp')
-    df = df[df['reference_identifier'] == isin].copy()
+    df = read_pkl('price')
 
-    return df
+    df = df[df['reference_identifier'] == isin]
+
+    n = len(df)
+    df_train = df[0:int(n*train_perc)]
+    df_val = df[int(n*train_perc):int(n*(train_perc+val_perc))]
+    df_test = df[int(n*(1-test_perc)):]
+
+    df_train = df_train.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+    df_val = df_val.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+    df_test = df_test.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+
+    print(f'Data {len(df)}')
+    print(f'Training {len(df_train)}')
+    print(f'Validation {len(df_val)}')
+    print(f'Test {len(df_test)}')
+
+    return (df_train, df_val, df_test)
