@@ -10,9 +10,10 @@ import numpy as np
 
 import sys
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 from loguru import logger
 from src.features import build_features
+from datetime import date
 
 sys.path.insert(0, "..")
 
@@ -26,11 +27,11 @@ def read_csv(
     logger.info(f"Loading data from {path}")
     df = pd.DataFrame()
     try:
-        df = pd.read_csv(path, thousands=thousands, *args, **kwargs )
+        df = pd.read_csv(path, thousands=thousands, dayfirst=True, *args, **kwargs )
 
     except Exception as error:      
         logger.error(f"Error loading data: {error}")
-
+    
     return df
 
 
@@ -42,7 +43,9 @@ def get_bond_data(
     ''' Read raw bond data from CSV, drop columns and format data '''    
     
     # loading bond data        
-    df = read_csv(path)
+    df = read_csv(path, parse_dates = ['issue_dt', 'first_coupon_date', 'mature_dt'])
+    # remove special character
+    df.columns = df.columns.str.replace(' ', '')
     
     # Drop unneeded columns
     df = df.drop(['bondname','bond_ext_name', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
@@ -51,21 +54,23 @@ def get_bond_data(
     for column in ['cfi_code','isin','ccy','issuer_name','coupon_frq','country_name','issue_rating']:
         df[column] = df[column].astype('string')
 
-    for column in ['issue_dt','first_coupon_date','mature_dt' ]:
-        df[column] = pd.to_datetime(df[column])
+    #for column in ['issue_dt','first_coupon_date','mature_dt' ]:
+    #    df[column] = pd.to_datetime(df[column])
        
     # Remove trailing spaces
-    for col in ['isin','coupon_frq','country_name']:
+    for col in ['isin','coupon_frq','country_name','issuer_name']:
         df[col] = df[col].str.strip()
         
-    # Total Issue amount '-' should be converted to 0
-    # rename country_name to country
-    df = df.rename(columns={' tot_issue ': 'tot_issue', 'country_name':'country'})  
-
-    # Save tot_issue as amount
-    df.loc[df['tot_issue'] == '-', 'tot_issue'] = '0'  
-    df['tot_issue']= df['tot_issue'].str.replace(',','').str.replace('-','0').astype('float')    
     
+    # rename country_name to country
+    df = df.rename(columns={'country_name':'country'})  
+    
+    # Total Issue amount '-' should be converted to 0
+    df.loc[df['tot_issue'] == '-', 'tot_issue'] = '0'  
+    df['tot_issue']= df['tot_issue'].str.replace(',','').str.replace('-','0').astype('float')  / 1000000  
+
+    df['coupon'] = df['coupon'].str.replace(',','').str.replace('-','0').astype('float')
+
     return df
 
 
@@ -74,12 +79,7 @@ def impute_bonds(
 ) -> pd.DataFrame:
 
     logger.info('Impute bond data')
-    # FillNa Issue Rating missing for US and Wallonie    
-    selection = ( df['issuer_name'] == 'UNITED STATES TREASURY' )
-    df.loc[selection,'issue_rating'] = df.loc[selection,'issue_rating'].fillna('AAA')
-    selection = ( df['issuer_name'] == 'WALLONIE' )
-    df.loc[selection,'issue_rating'] = df.loc[selection,'issue_rating'].fillna('AA-')
-
+    
     # CFI Codes Imputed with Dept Instrument XXXXX (Unknown)
     df['cfi_code'] = df['cfi_code'].fillna('DXXXXX')
 
@@ -90,8 +90,13 @@ def impute_bonds(
 
     # impute first coupon date if missing
     df['first_coupon_date'] = df['first_coupon_date'].fillna(df['issue_dt'])
+
     # Bond duration (estimation)
     df['bond_duration'] = df['mature_dt'] - df['issue_dt']    
+
+    # Fill missing issuer_rating met meest voorkomende waarde per issuer name
+    # voor nu verwijderen we deze bonds
+    df = df[~df['issue_rating'].isnull()]    
 
     return df
  
@@ -108,23 +113,21 @@ def get_price(
     '''
     logger.info('Load bond price data')
     
-    df = read_csv(path)
-
+    df = read_csv(path,  parse_dates = ['rate_dt'])
+    # remove special character
+    df.columns = df.columns.str.replace(' ', '')
+    
     # Correct columns types
     for column in ['reference_identifier','ccy']:
         df[column] = df[column].astype('string')
-    for column in ['rate_dt' ]:
-        df[column] = pd.to_datetime(df[column])
-
+   
     # Bid en Offer zijn overbodig want gelijk in bron systeem.
     # Deze voegen we samen
     df['mid'] = (df['bid'] + df['offer'])  / 2
     df = df.drop(['bid','offer'], axis = 1)    
 
     # Data van 30-7 zit 2x in de bron
-    df = df.drop_duplicates()
-
-    
+    df = df.drop_duplicates()    
     return df
 
 def impute_price(
@@ -134,6 +137,11 @@ def impute_price(
     logger.info('Impute bond price')
     # 99.999 is een 'default'. Deze verwijderen we
     df = df[df['mid'] != 99.999]    
+
+    # data van 31-12 is een duplicaat van 30-12. Deze verwijderen    
+    # df = df[ ( df['rate_dt'] != date(df['rate_dt'].dt.year, 12, 31) ) ]
+    
+
     return df
 
 def get_yield(
@@ -142,27 +150,26 @@ def get_yield(
     logger.info('Load goverment yield curve data')
 
     country_dict = {'DE': 'Germany','FR': 'France','ES': 'Spain','IT': 'Italy','NL': 'Netherlands'}
-
-    df = read_csv(path)
-
+    
+    df = read_csv(path, parse_dates = ['rate_dt', 'actual_dt'])
+    # remove special character
+    df.columns = df.columns.str.replace(' ', '')
+    
     # Voeg een country_name kolom toe
     for country in country_dict:
-        df.loc[df['name'].str.contains(country), 'country'] = country_dict[country]
-
-    # hernoem name naar ratename (voor de duidelijkheid)
-    df = df.rename(columns={'name': 'ratename'})
-
-    for column in ['ratename','ccy','timeband','int_basis','country']:
-        df[column] = df[column].astype('string')
-    for column in ['rate_dt','actual_dt' ]:
-        df[column] = pd.to_datetime(df[column])
+        df.loc[df['ratename'].str.contains(country), 'country'] = country_dict[country]
     
-    df['timeband'] = df['timeband'].str.strip()
-
     # Data bevat meerdere waarnemingen per dag. Bewaar alleen de laatste
     df = df.groupby(['country','rate_dt','timeband']).nth(-1)
     df = df.reset_index()
 
+    for column in ['ratename','ccy','timeband','int_basis','country']:
+        df[column] = df[column].astype('string')    
+        df[column] = df[column].str.strip()
+
+    for column in ['bid','offer']:
+        df[column] = df[column].replace(',','').replace('-','0').astype('float')            
+    
     return df    
 
 
@@ -182,6 +189,12 @@ def impute_yield(
     # De timeband omzetten naar een timedelta.
     df['time'] = df['actual_dt'] - df['rate_dt']
     df = df.drop(columns = 'offset')
+
+    # Bereken alvast de mid rate
+    df['mid'] = (df['bid'] + df['offer'] ) / 2
+
+    # drop data voor 1-jan-2010
+    df[df['rate_dt'] >= '1-jan-2010']
     
     return df
 
@@ -392,11 +405,31 @@ def build_simple_input(
     df_bp = build_features.encode_cfi(df_bp)
 
     # Alle string variabelen worden one hot encoded...
-    for column in df_bp.select_dtypes(include=['string']).columns.tolist():
-        df_bp = build_features.encode_onehot(df_bp,column)
+    #for column in df_bp.select_dtypes(include=['string']).columns.tolist():
+    #    df_bp = build_features.encode_onehot(df_bp,column)
     
     return df_bp
 
+
+def split_data(
+    df          :  pd.DataFrame,
+    train_perc  :  float = 0.70,
+    val_perc    :  float = 0.20,
+    test_perc   :  float = 0.10,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+
+
+    n = len(df)
+    df_train = df[0:int(n*train_perc)]
+    df_val = df[int(n*train_perc):int(n*(train_perc+val_perc))]
+    df_test = df[int(n*(1-test_perc)):]
+
+    logger.info(f'Data {len(df)}')
+    logger.info(f'Training {len(df_train)}')
+    logger.info(f'Validation {len(df_val)}')
+    logger.info(f'Test {len(df_test)}')
+
+    return (df_train, df_val, df_test)
 
 def read_single_bond(
     isin:   str,
@@ -406,21 +439,41 @@ def read_single_bond(
 ) -> pd.DataFrame:
 
     df = read_pkl('price')
-
     df = df[df['reference_identifier'] == isin]
-
-    n = len(df)
-    df_train = df[0:int(n*train_perc)]
-    df_val = df[int(n*train_perc):int(n*(train_perc+val_perc))]
-    df_test = df[int(n*(1-test_perc)):]
+    df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
 
     df_train = df_train.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
     df_val = df_val.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
     df_test = df_test.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+    
+    return (df_train, df_val, df_test)
 
-    print(f'Data {len(df)}')
-    print(f'Training {len(df_train)}')
-    print(f'Validation {len(df_val)}')
-    print(f'Test {len(df_test)}')
+def read_bond_with_features( 
+    isin        :   str,
+    features    :   List[str] = [],
+    train_perc  :   float = 0.70,
+    val_perc    :   float = 0.20,
+    test_perc   :   float = 0.10,
+    label_var   :   str = 'mid',
+    time_var    :   str = 'rate_dt'
+) -> pd.DataFrame:
+
+    df_price = read_pkl('price')    
+    df_bonds = read_pkl('bonds')   
+
+    # Select a single bond 
+    df_bonds = df_bonds[df_bonds['isin'] == isin]
+    df_price = df_price[df_price['reference_identifier'] == isin]
+
+    df = build_simple_input(df_bonds, df_price )
+
+    if features:
+        variables = [label_var, *features] 
+        df = df.filter(variables)
+
+    df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
+
 
     return (df_train, df_val, df_test)
+
+

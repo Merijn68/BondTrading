@@ -64,7 +64,11 @@ def lplot(
     data: List[pd.DataFrame],        
     figsize: Tuple[int, int] = (8, 6),
 ) -> None:    
+    palletes = ['green', 'blue', 'red']
     plt.figure(figsize=figsize)    
+    x = 0
     for line in data:           
-        sns.lineplot(data = line)
+ 
+        sns.lineplot(data = line, palette = [palletes[x]])
+        x = x + 1
         
