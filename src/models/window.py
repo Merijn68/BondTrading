@@ -121,9 +121,7 @@ class WindowGenerator():
             self._example = result
         return result
 
-
-    # Raouls solution
-
+    
 def windowed_dataset(series, window_size, batch_size, shuffle_buffer, horizon=1):
     ds = tf.data.Dataset.from_tensor_slices(series) 
     ds = ds.window(window_size + horizon, shift=1, drop_remainder=True) # shifted windows. +1 for target value
@@ -132,9 +130,4 @@ def windowed_dataset(series, window_size, batch_size, shuffle_buffer, horizon=1)
     ds = ds.map(lambda w: (w[:-horizon], w[-horizon:])) # split into data and target, x and y
     return ds.batch(batch_size).prefetch(1)
 
-window_size = 32 
-batch_size = 32
-shuffle_buffer = 16
-horizon = 1
-train_set = windowed_dataset(train, window_size, batch_size, shuffle_buffer, horizon=horizon)
-valid_set = windowed_dataset(test, window_size, batch_size, shuffle_buffer, horizon=horizon)
+

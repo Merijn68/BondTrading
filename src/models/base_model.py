@@ -1,10 +1,25 @@
-import tensorflow as tf
-from typing import Dict
+
+from typing import Dict, Tuple
 from loguru import logger
+
+
+import tensorflow as tf
 from tensorflow.keras.layers import (    
     Flatten
 )
 from tensorflow.keras.layers.experimental.preprocessing import Rescaling
+
+
+import numpy as np
+
+def naivepredict(
+  series: np.array,
+  horizon: int = 1,
+) -> Tuple[np.ndarray, np.ndarray]:    
+    y = series[1:]
+    yhat = series[:-1]
+    return y, yhat
+
 
 # Base line class predicts waarde t+1 = waarde t
 class Baseline(tf.keras.Model):
