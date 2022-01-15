@@ -6,9 +6,10 @@ from ray import tune
 from ray.tune import JupyterNotebookReporter
 from ray.tune.integration.keras import TuneReportCallback
 from ray.tune.schedulers import AsyncHyperBandScheduler
+import numpy as np
 
-from src.data import make_dataset
 
+from src.models import window
 
 class HyperRnn(tf.keras.Model):
     def __init__(self: tf.keras.Model, config: Dict) -> None:
@@ -52,16 +53,20 @@ class HyperRnn(tf.keras.Model):
         return x
 
 
-def train_hypermodel(config: Dict) -> HyperRnn:
-    data = make_dataset.get_sunspots(datadir=config["datadir"])
-    train, test = make_dataset.preprocess(data["MonthlyMean"], split=2500)
+
+def train_hypermodel(
+    train: np.ndarray,
+    test: np.ndarray,
+    config: Dict
+) -> HyperRnn:
+
     window_size = config["window"]
-    train_set = make_dataset.windowed_dataset(
-        train, window_size, batch_size=32, shuffle_buffer=25, horizon=1
-    )
-    valid_set = make_dataset.windowed_dataset(
-        train, window_size, batch_size=32, shuffle_buffer=25, horizon=1
-    )
+    batch_size = 32
+    shuffle_buffer = 2
+    horizon = 1
+
+    train_set = window.windowed_dataset(train, window_size, batch_size, shuffle_buffer, horizon=horizon)
+    valid_set = window.windowed_dataset(test, window_size, batch_size, shuffle_buffer, horizon=horizon)
 
     def scheduler(epoch: int, lr: float) -> float:
         # first n epochs, the learning rate stays high
@@ -103,7 +108,11 @@ def train_hypermodel(config: Dict) -> HyperRnn:
     return model
 
 
-def hypertune(config: Dict) -> tune.analysis.experiment_analysis.ExperimentAnalysis:
+def hypertune(
+    train: np.array,
+    test: np.array,
+    config: Dict
+) -> tune.analysis.experiment_analysis.ExperimentAnalysis:
 
     sched = AsyncHyperBandScheduler(
         time_attr="training_iteration", max_t=200, grace_period=config["grace_period"]
@@ -114,7 +123,7 @@ def hypertune(config: Dict) -> tune.analysis.experiment_analysis.ExperimentAnaly
     def tune_wrapper(config: Dict) -> None:
         from src.models import hyper
 
-        _ = hyper.train_hypermodel(config)
+        _ = hyper.train_hypermodel(train, test, config)
 
     tune.register_trainable("wrapper", tune_wrapper)
 
@@ -128,7 +137,7 @@ def hypertune(config: Dict) -> tune.analysis.experiment_analysis.ExperimentAnaly
         local_dir=config["local_dir"],
         stop={"training_iteration": config["epochs"]},
         num_samples=config["samples"],
-        resources_per_trial={"cpu": 4, "gpu": 1},
+        resources_per_trial={"cpu": 8, "gpu": 1},
         config=config,
     )
     return analysis
