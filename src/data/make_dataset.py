@@ -363,7 +363,7 @@ def save_pkl(
     # Store processed data
     logger.info(f'Save preprocessed {name} data')
     try:
-        df.to_pickle(f'../data/processed/{name}.pkl')
+        df.to_pickle(f'../data/processed/{name}.pkl', protocol = 4)  # Set protocol to 4 for Colab
         df.to_csv(f'../data/processed/{name}.csv')
     except Exception as error:      
         logger.error(f"Error saving {name} data: {error}")
