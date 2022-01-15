@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 from src.models import base_model
 
