@@ -162,3 +162,57 @@ def naive(
     plt.axhline(1.0, color="r", label="naive norm")
     plt.ylim(0, ylim)
     plt.legend()
+
+
+
+def generate_prediction(
+    model: tf.keras.Model,
+    series: np.ndarray,
+    window: int,
+    horizon: int,
+    figsize: Tuple[int, int] = (10, 10),
+) -> np.ndarray:
+    """
+    After a model is trained, we can check the predictions.
+    This function generates predictions, given a model and a timeseries,
+     for a given window in the past
+    and a horizon in the future.
+    It returns both the prediction and a plot.
+    """
+
+    # make sure we have an np.array
+    series = np.array(series)
+    # calculate the amount of horizons we can predict in a given series
+    batches = int(np.floor((len(series) - window) / horizon))
+
+    # we might end up with some rest, where we don't have enough data for the
+    # last prediction, so we stop just before that
+    # end = batches * horizon - window
+    yhat_ = []
+
+    # for every batch
+    for i in tqdm(range(batches)):
+        # skip the horizons we already predicted
+        shift = i * horizon
+
+        # take the window from the past we need for predicting,
+        # skipping what we already predicted
+        X = series[0 + shift : window + shift]  # noqa: N806, E203
+
+        # add a dimension, needed for the timeseries
+        X = X[np.newaxis, :]  # noqa: N806
+        if X.shape[1] == window:
+            # predict the future horizon, given the past window
+            y = model.predict(X).flatten()[:horizon]
+            # collect as a list of predictions
+            yhat_.append(y)
+
+    # transform the appended results into a single numpy array for plotting
+    yhat = np.concatenate(yhat_, axis=None)
+
+    plt.figure(figsize=figsize)
+    plt.plot(yhat, label="prediction")
+    plt.plot(series[window:], label="actual")
+    plt.legend()
+
+    return yhat
