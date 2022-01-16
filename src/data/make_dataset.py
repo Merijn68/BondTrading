@@ -137,15 +137,16 @@ def impute_price(
 ) -> pd.DataFrame:
 
     logger.info('Impute bond price')
-    # 99.999 is een 'default'. Deze verwijderen we
-    df = df[df['mid'] != 99.999]    
 
     # data van 31-12 is een duplicaat van 30-12. Deze verwijderen    
     from datetime import date
     df['lastday'] = df['rate_dt'].dt.year.apply( lambda x : date( x, 12, 31))
-    df = df[df['rate_dt'] != df['lastday']]
+    df = df[df['rate_dt'] != df['lastday']].copy()
     df.drop('lastday', axis = 'columns')
-  
+    # 99.999 is een 'default'. Deze verwijderen we
+    df = df[df['mid'] != 99.999]    
+
+    
     return df
 
 def get_yield(
