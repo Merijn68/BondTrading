@@ -91,8 +91,10 @@ def impute_bonds(
     # impute first coupon date if missing
     df['first_coupon_date'] = df['first_coupon_date'].fillna(df['issue_dt'])
 
-    # Bond duration (estimation)
+    # Bond duration (estimation in dagen)
     df['bond_duration'] = df['mature_dt'] - df['issue_dt']    
+    df['bond_duration'] = df['bond_duration'].dt.days   
+
 
     # Fill missing issuer_rating met meest voorkomende waarde per issuer name
     # voor nu verwijderen we deze bonds
@@ -139,9 +141,11 @@ def impute_price(
     df = df[df['mid'] != 99.999]    
 
     # data van 31-12 is een duplicaat van 30-12. Deze verwijderen    
-    # df = df[ ( df['rate_dt'] != date(df['rate_dt'].dt.year, 12, 31) ) ]
-    
-
+    from datetime import date
+    df['lastday'] = df['rate_dt'].dt.year.apply( lambda x : date( x, 12, 31))
+    df = df[df['rate_dt'] != df['lastday']]
+    df.drop('lastday', axis = 'columns')
+  
     return df
 
 def get_yield(
@@ -267,6 +271,7 @@ def make_data(
     save_pkl('inflation', df_inflation)
     
     df_bp = join_price(df_bonds,df_price )
+    df_bp = build_features.add_duration(df_bp)    
     save_pkl('bp', df_bp)
 
     df_tf = build_simple_input(df_bonds, df_price)    
@@ -395,9 +400,6 @@ def build_simple_input(
 
     df_bp = join_price(df_bonds,df_price )    
     df_bp = build_features.add_duration(df_bp)    
-
-    df_bp['bond_duration'] = df_bp['bond_duration'].dt.days
-    df_bp['remain_duration'] = df_bp['remain_duration'].dt.days
 
     # Alle geselecteerde bonds zijn in EUR. Referrence_identifier en ISIN zijn dubbel
     df_bp = df_bp.drop(['ccy','reference_identifier'], axis = 1)    

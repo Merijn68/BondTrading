@@ -11,7 +11,8 @@ def add_duration(
   df: pd.DataFrame
 ) -> pd.DataFrame:
   logger.info('Add remaining duration...')
-  df['remain_duration'] = df['mature_dt'] - df['rate_dt'] 
+  df['remain_duration'] = df['mature_dt'] - df['rate_dt']   
+  df['remain_duration'] = df['remain_duration'].dt.days    
     
   return df
 
