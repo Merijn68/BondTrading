@@ -48,7 +48,7 @@ def get_bond_data(
     df.columns = df.columns.str.replace(' ', '')
     
     # Drop unneeded columns
-    df = df.drop(['bondname','bond_ext_name', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
+    df = df.drop(['bondname', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
 
     # Correct columns types
     for column in ['cfi_code','isin','ccy','issuer_name','coupon_frq','country_name','issue_rating']:
