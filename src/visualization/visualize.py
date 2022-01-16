@@ -9,8 +9,9 @@ from typing import List, Tuple, Dict, Optional
 def countplot(
     data: pd.DataFrame, 
     x: str,
-    hue: str = ''  
+    hue: str = ''    
 ):
+
     if hue:
         ax = sns.countplot(data = data, y = x, hue = hue, order = data[x].value_counts().index)
     else:
