@@ -2,6 +2,7 @@ from typing import Dict
 
 import tensorflow as tf
 import tensorflow.keras.layers as tfl
+
 from ray import tune
 from ray.tune import JupyterNotebookReporter
 from ray.tune.integration.keras import TuneReportCallback
@@ -29,8 +30,10 @@ class HyperRnn(tf.keras.Model):
         layertype: str = config["type"]
         units: int = config["units"]
         if layertype == "LSTM":
+            # self.cell = tfl.LSTM
             self.cell = tfl.LSTM
         elif layertype == "GRU":
+            # self.cell = tfl.GRU
             self.cell = tfl.GRU
         else:
             self.cell = tfl.SimpleRNN
