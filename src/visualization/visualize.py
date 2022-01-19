@@ -1,10 +1,11 @@
+import seaborn as sns
+import pandas as pd
+import numpy as np
+import math
+import tensorflow as tf
+import random
+from   matplotlib import pyplot as plt
 from xmlrpc.client import Boolean
-import  seaborn as sns
-from    matplotlib import pyplot as plt
-import  pandas as pd
-import  numpy as np
-import  math
-
 from typing import List, Tuple, Dict, Optional
 
 def countplot(
@@ -136,5 +137,55 @@ def boxplot(
     plt.figure(figsize=figsize)        
     ax = sns.boxplot(data = data, x = x, y = y, order = order)    
     
-
     return ax
+
+def plot_example(
+    data: np.ndarray,
+    window_size: int,
+    horizon: int,
+    examples: int,
+    model: Optional[tf.keras.Model] = [],
+    figsize: Tuple[int, int] = (11, 3),
+) -> plt.Figure:
+    ''' plot examples from timeseries model with predictions '''
+    
+    x, y = next(iter(data))      
+    yhat = []  
+    if model:
+        yhat = model.predict(data)   
+
+    # adjust figure size depending on number of examples
+    w,h = figsize
+    figsize = (w, h * examples)
+    
+    # Calculate x axis to show window + horizon
+    input_slice = slice(0, window_size)
+    total_window_size = window_size + horizon
+    input_indices = np.arange(total_window_size)[input_slice]
+    label_start = total_window_size - horizon
+    labels_slice = slice(label_start, None)
+    label_indices = np.arange(total_window_size)[labels_slice]
+
+    # Choice x samples without replacement
+    samples = np.random.choice(np.arange(0,len(x)),examples, replace=False)
+
+    fig, axes = plt.subplots(nrows=examples, ncols= 1,sharey=True, sharex=True, figsize=figsize)
+    fig.tight_layout()
+    for sample, ax in zip(samples, axes.flatten()):
+    
+        ax.plot(input_indices, x[sample], marker='.', c='blue')
+        ax.plot(label_indices, y[sample], marker='.', c='green')
+        ax.scatter(label_indices, y[sample], edgecolors='k', label='Labels', c='green', s=64)
+        if np.any(yhat):
+            ax.scatter(label_indices, yhat[sample], marker='X', edgecolors='k', label='predictions', c='#ff7f0e', s=64)
+
+    return fig
+
+
+
+
+
+
+
+
+

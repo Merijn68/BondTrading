@@ -20,6 +20,7 @@ ray = {extras = ["tune"], version = "^1.8.0"}
 tensorflow-addons = "^0.15.0"
 hyperopt = "^0.2.7"
 tensorflow-hub = "^0.12.0"
+keras-tuner = "^1.1.0"
 
 [tool.poetry.dev-dependencies]
 black = "^21.12b0"

@@ -1,5 +1,5 @@
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List, ndarray
 from loguru import logger
 
 
@@ -23,31 +23,27 @@ def naivepredict(
 
 # Base line class predicts waarde t+1 = waarde t
 class Baseline(tf.keras.Model):
-  def __init__(self, label_index=None):
-    super().__init__()
-    self.label_index = label_index
+  def __init__(self: tf.keras.Model, horizon: int, size: int):
+    super().__init__()    
+    _horizon = horizon
+    _size = size
 
-  def call(self, inputs):
-    if self.label_index is None:
-      return inputs    
-    result = inputs[:, :, self.label_index]
-    return result[:, :, tf.newaxis]
+  def call(self, inputs):    
+    
+    horizon = self._horizon
+    size = self._size
+    x1 = x[:, -1]
 
-class Basemodel(tf.keras.Model):
-    def __init__(self: tf.keras.Model, config: Dict) -> None:
-        super().__init__(config)
-        logger.info("init base")
-
-        self.hidden = []
-        if "initializer" not in config:
-            config["initializer"] = "glorot_uniform"
-
-        self.out = tf.keras.layers.Dense(1, activation="relu")
-
-    def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
-        
-        for layer in self.hidden:
-            x = layer(x)
-
-        x = self.out(x)
-        return x
+    yhat = tf.broadcast_to(tf.reshape(x1, [size,1]), [size, horizon]) 
+    return outputs
+    
+def naivenorm(series: np.ndarray, horizon: int) -> float:
+    X = series[:horizon]  # noqa: N806
+    Y = series[1:]  # noqa: N806
+    maelist: List[ndarray] = []
+    for i, x in enumerate(X):
+        y = Y[i : i + horizon] # noqa E203
+        yhat = [x] * horizon
+        mae = np.mean(np.abs(y - yhat))
+        maelist.append(mae)
+    return np.mean(maelist)
