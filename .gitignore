@@ -77,6 +77,8 @@ target/
 
 # exclude data from source control by default
 
+# exclude logs from source control by default
+logs/
 
 
 
