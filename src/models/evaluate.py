@@ -20,6 +20,11 @@ def mase(y: np.ndarray, yhat: np.ndarray) -> float:
     norm = mae(*base_model.naivepredict(y))
     return mae(y, yhat) / norm
 
+
+def last_time_step_mse(y: np.ndarray, yhat: np.ndarray) -> float:
+    return mse(y[:, -1], yhat[:, -1])
+
+
 class ScaledMAE(tf.keras.metrics.Metric):
     def __init__(self, scale: float = 1.0, name: str = "smae", **kwargs) -> None:
         super(ScaledMAE, self).__init__(name=name, **kwargs)
@@ -121,36 +126,6 @@ def movingaverage(
     ret[window_size:] = ret[window_size:] - ret[:-window_size]
     return ret[window_size - 1:] / window_size
 
-# Alternative plot 
-
-# — — — — — — — — — — — — — — — — — — — — — — — — — — — — — -
-# Retrieve a list of list results on training and test data
-# sets for each training epoch
-# — — — — — — — — — — — — — — — — — — — — — — — — — — — — — -
-#loss=history.history[‘loss’]
-#epochs=range(len(loss)) # Get number of epochs
-# — — — — — — — — — — — — — — — — — — — — — — — — 
-# Plot training and validation loss per epoch
-# — — — — — — — — — — — — — — — — — — — — — — — — 
-#plt.plot(epochs, loss, ‘r’)
-#plt.title(‘Training loss’)
-#plt.xlabel(“Epochs”)
-#plt.ylabel(“Loss”)
-#plt.legend([“Loss”])
-#plt.figure()
-#zoomed_loss = loss[200:]
-#zoomed_epochs = range(200,500)
-# — — — — — — — — — — — — — — — — — — — — — — — — 
-# Plot training and validation loss per epoch
-# — — — — — — — — — — — — — — — — — — — — — — — — 
-#plt.plot(zoomed_epochs, zoomed_loss, ‘r’)
-#plt.title(‘Training loss’)
-#plt.xlabel(“Epochs”)
-#plt.ylabel(“Loss”)
-#plt.legend([“Loss”])
-#plt.figure()
-
-
 def naive(
     result: Dict, 
     ylim: float = 2,
@@ -163,7 +138,6 @@ def naive(
     plt.axhline(1.0, color="r", label="naive norm")
     plt.ylim(0, ylim)
     plt.legend()
-
 
 
 def generate_prediction(

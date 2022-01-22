@@ -1,15 +1,7 @@
 
 from typing import Dict, Tuple, List
 from loguru import logger
-
-
 import tensorflow as tf
-from tensorflow.keras.layers import (    
-    Flatten
-)
-from tensorflow.keras.layers.experimental.preprocessing import Rescaling
-
-
 import numpy as np
 
 def naivepredict(
@@ -19,6 +11,22 @@ def naivepredict(
     y = series[1:]
     yhat = series[:-1]
     return y, yhat
+
+def calc_mae_for_horizon(
+  train_set: np.ndarray,
+  horizon: int = 1,
+) -> float:
+  ''' calculate mean difference between naive prediction and y at horizon '''
+  maelist = []
+  for x, y in train_set:        
+      x1 = x[:, -1] # get the last value of every batch
+      size = tf.size(x1) # this will be the batchsize, so mostly 32
+      yhat = tf.broadcast_to(tf.reshape(x1, [size,1]), [size, horizon]) # broadcast
+      mae = np.mean(np.abs(yhat - y)) # calculate mae
+      maelist.append(mae)
+  norm = np.mean(maelist)
+  return norm
+
 
 
 # Base line class predicts waarde t+1 = waarde t
