@@ -1,9 +1,10 @@
-
 import re
 import numpy as np
 import tensorflow as tf
 from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
+
+
 from tqdm import tqdm
 
 from src.models import base_model
@@ -19,10 +20,6 @@ def mae(y: np.ndarray, yhat: np.ndarray) -> float:
 def mase(y: np.ndarray, yhat: np.ndarray) -> float:
     norm = mae(*base_model.naivepredict(y))
     return mae(y, yhat) / norm
-
-
-def last_time_step_mse(y: np.ndarray, yhat: np.ndarray) -> float:
-    return mse(y[:, -1], yhat[:, -1])
 
 
 class ScaledMAE(tf.keras.metrics.Metric):
