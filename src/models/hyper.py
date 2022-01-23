@@ -44,12 +44,15 @@ class HyperRnn(tf.keras.Model):
             for _ in range(config["hidden"] - 1):
                 self.hidden += [self.cell(units=units, return_sequences=True)]
 
+            # Try to see if adding a timedistributed dense layer
+            if config["timeDistributed"]:
+                self.hidden += [ tfl.TimeDistributed( tfl.Dense(config["horizon"])) ] 
 
         # Last output cells should also return sequence
-        self.hidden = [self.cell(units, return_sequences=True)]
-        # Add Timesequence distributed layers 
-        # self.out = tfl.Dense(config["horizon"])
-        self.out = tfl.TimeDistributed(tfl.Dense(config["horizon"]))
+        self.hidden = [self.cell(units, return_sequences=False)]
+        
+        self.out = tfl.Dense(config["horizon"])
+        # self.out = tfl.TimeDistributed(tfl.Dense(config["horizon"]))
 
     def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
         x = self.reshape(x)

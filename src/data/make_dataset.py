@@ -407,10 +407,6 @@ def build_simple_input(
     df_bp = build_features.encode_coupon_freq(df_bp)    
     df_bp = build_features.encode_cfi(df_bp)
 
-    # Alle string variabelen worden one hot encoded...
-    #for column in df_bp.select_dtypes(include=['string']).columns.tolist():
-    #    df_bp = build_features.encode_onehot(df_bp,column)
-    
     return df_bp
 
 

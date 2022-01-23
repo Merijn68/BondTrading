@@ -1,12 +1,24 @@
+from re import X
 import seaborn as sns
 import pandas as pd
 import numpy as np
 import math
 import tensorflow as tf
 import random
+import matplotlib as mpl
 from   matplotlib import pyplot as plt
+from   pathlib import Path
+
 from xmlrpc.client import Boolean
 from typing import List, Tuple, Dict, Optional
+
+
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'Arial'
+mpl.rcParams['font.family'] = 'Arial'
+figsize=(10,6)
+
 
 def countplot(
     data: pd.DataFrame, 
@@ -16,6 +28,8 @@ def countplot(
     maxitems = 10, 
     other_category = True,
     title: str = '',  
+    name: str = 'countplot',
+    figurepath: Path = Path("../reports/figures")
 ):
 
     if subplots:
@@ -42,33 +56,7 @@ def countplot(
     else:
         ax = sns.countplot(data = data, y = x[0], order = data[x[0]].value_counts().index)
         ax.set(xlabel="", ylabel = "")
-
-# def grouped_lineplot(
-#     data: pd.DataFrame,    
-#     ncols: int,
-#     x: str,    
-#     y: str,
-#     hue: str,
-#     group: str, 
-#     title: str = '',  
-#     figsize: Tuple[int, int] = (8, 6),  
-# ) -> plt.Figure:
-
-#     grouplist = data[group].unique()
-#     nrows = math.ceil(len(grouplist) / ncols)
-#     print (ncols, nrows)
-
-#     fig, axes = plt.subplots(nrows=nrows, ncols=ncols,sharey=True, sharex=True, figsize=figsize)
-    
-#     if title:
-#         fig.suptitle(title)
-    
-#     for item, ax, in zip(grouplist, axes.flatten()):                          
-#             ax.title.set_text(item)
-#             selection = data[group] == item
-#             sns.lineplot(ax=ax, data=data[selection], x=x, y=y, hue = hue, legend = None)
-            
-#     return fig
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
 
 def boxplot(
@@ -76,40 +64,49 @@ def boxplot(
     x: str,
     y: str,    
     hue: str = '',
-    figsize: Tuple[int, int] = (8, 6),
+    figsize: Tuple[int, int] = figsize,
+    name: str = 'boxplot',
+    figurepath: Path = Path("../reports/figures")    
 ) -> None:
     plt.figure(figsize=figsize)
     if hue:
         sns.boxplot(data=data, x=x, y=y, hue=hue)
     else:
         sns.boxplot(data=data, x=x, y=y)
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
     
     # plt.xticks(rotation=90)
 
-# def lplot(
-#     data: List[pd.DataFrame],        
-#     figsize: Tuple[int, int] = (8, 6),
-# ) -> None:    
-#     palletes = ['green', 'blue', 'red']
-#     plt.figure(figsize=figsize)    
-#     x = 0
-#     for line in data:           
- 
-#         sns.lineplot(data = line, palette = [palletes[x]])
-#         x = x + 1
 
 def lineplot(
     data: pd.DataFrame,    
     x: str,
     y: str,    
     hue: str = '',
-    figsize: Tuple[int, int] = (15, 8),    
+    figsize: Tuple[int, int] = figsize, 
+    name: str = 'lineplot',
+    figurepath: Path = Path("../reports/figures")   
 ) -> plt.Axes:  
 
     plt.figure(figsize=figsize)    
     ax = sns.lineplot(data = data, x = x, y = y, hue =  hue)
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
     return ax
+
+def timeplot(
+    train: pd.Series,
+    test: pd.Series,
+    figsize: Tuple[int, int] = figsize,   
+    name: str = 'timeplot',
+    figurepath: Path = Path("../reports/figures") 
+) -> plt.Axes:  
+    plt.figure(figsize=figsize) 
+    ax = sns.lineplot(data = train, x = train.index, y = train.values)
+    sns.lineplot(data = test, x = test.index, y = test.values, ax = ax)
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
+    return ax
+    
 
 
 def scatterplot(
@@ -118,11 +115,14 @@ def scatterplot(
     y: str,    
     hue: str = '',
     label: str = '',
-    figsize: Tuple[int, int] = (15, 8),
+    figsize: Tuple[int, int] = figsize,
+    name: str = 'scatterplot',
+    figurepath: Path = Path("../reports/figures")
 ) -> plt.Axes:  
     
     plt.figure(figsize=figsize)    
     ax = sns.scatterplot(data = data, x = x, y = y, hue = hue, label = label)
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
     return ax
 
@@ -131,12 +131,15 @@ def boxplot(
     x: str,
     y: str,            
     order: List[str] = [],
-    figsize: Tuple[int, int] = (15, 8),
+    figsize: Tuple[int, int] = figsize,
+    name: str = 'boxplot',
+    figurepath: Path = Path("../reports/figures")
 ) -> plt.Axes:  
     
     plt.figure(figsize=figsize)        
     ax = sns.boxplot(data = data, x = x, y = y, order = order)    
-    
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
+
     return ax
 
 def distribution(
@@ -144,13 +147,16 @@ def distribution(
     x: str,    
     xlabel: str = 'Prijs',
     ylabel: str = 'Aantal',
-    figsize: Tuple[int, int] = (15, 8),
+    figsize: Tuple[int, int] = figsize,
+    name: str = 'distribution',
+    figurepath: Path = Path("../reports/figures")
 ) -> plt.Axes:  
 
     plt.figure(figsize=figsize) 
     ax = sns.histplot(data, x = x)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
     return ax
 
@@ -160,7 +166,9 @@ def plot_example(
     horizon: int,
     examples: int,
     model: Optional[tf.keras.Model] = [],
-    figsize: Tuple[int, int] = (11, 3),
+    figsize: Tuple[int, int] = (10, 3),
+    name: str = 'model_example',
+    figurepath: Path = Path("../reports/figures")
 ) -> plt.Figure:
     ''' plot examples from timeseries model with predictions '''
     
@@ -193,6 +201,8 @@ def plot_example(
         ax.scatter(label_indices, y[sample], edgecolors='k', label='Labels', c='green', s=64)
         if np.any(yhat):
             ax.scatter(label_indices, yhat[sample], marker='X', edgecolors='k', label='predictions', c='#ff7f0e', s=64)
+
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
     return fig
 
