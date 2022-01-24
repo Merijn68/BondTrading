@@ -325,6 +325,21 @@ def join_yield(
     
     return df    
 
+
+def join_ytm(
+    df_bp: pd.DataFrame,
+    df_yield: pd.DataFrame
+) -> pd.DataFrame:
+    ''' Calculate for each bond per rate datae the Yield to Maturity '''
+    df = df_bp.merge(df_yield, left_on = ['country','rate_dt'], right_index=['country','rate_dt'], how = 'inner')
+    df = df[ df.time.dt.days > df.remain_duration ]
+    df = df[ df['remain_duration'] == df['remain_duration'].min()  ]
+    return df
+
+
+
+
+
 def fulljoin(
     df_bonds: pd.DataFrame,
     df_price: pd.DataFrame,

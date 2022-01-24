@@ -84,8 +84,6 @@ def add_bid_offer_spread(
 
   return df
 
-
-
 def country_spread(
   df  
 ) -> pd.DataFrame:

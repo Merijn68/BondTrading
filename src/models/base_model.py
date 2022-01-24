@@ -20,6 +20,8 @@ def calc_mae_for_horizon(
   maelist = []
   for x, y in train_set:        
       x1 = x[:, -1] # get the last value of every batch
+      if x1.ndim > 1:
+        x1 = x1[:, 0] # get only the signal
       size = tf.size(x1) # this will be the batchsize, so mostly 32
       yhat = tf.broadcast_to(tf.reshape(x1, [size,1]), [size, horizon]) # broadcast
       mae = np.mean(np.abs(yhat - y)) # calculate mae

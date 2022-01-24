@@ -196,7 +196,11 @@ def plot_example(
     fig.tight_layout()
     for sample, ax in zip(samples, axes.flatten()):
     
-        ax.plot(input_indices, x[sample], marker='.', c='blue')
+        if x.ndim > 2: # More features : Eerste feature is het signaal
+            ax.plot(input_indices, x[sample][:,0], marker='.', c='blue')
+        else:
+            ax.plot(input_indices, x[sample], marker='.', c='blue')
+
         ax.plot(label_indices, y[sample], marker='.', c='green')
         ax.scatter(label_indices, y[sample], edgecolors='k', label='Labels', c='green', s=64)
         if np.any(yhat):
