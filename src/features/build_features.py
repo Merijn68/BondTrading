@@ -107,6 +107,30 @@ def country_spread(
   
   return df_pivot
 
+def add_estimated_bond_price(
+ df: pd.DataFrame,
+ var: str = 'estimated_bondprice'
+) -> pd.DataFrame:
+  ''' Calculate theoreritcal bond price based on yield to maturity'''
+  df[var] = df.apply( calculate_price, axis = 1 )
+  return df
 
-
+def calculate_price( 
+    row
+) -> float:
+         
+   periods = (row['remain_duration'] / 365) 
+   ytm = row['ytm'] / 100
+   coupon = row['coupon'] / 100
+   if (row['coupon_frq'] == 'ANNUAL'):
+      frequency = 1
+   else:
+      frequency = 2
+   par_value = 100    
+   i = coupon / frequency * par_value
+   p = (1 - ( 1 + ytm / frequency ) ** (-periods))/(ytm / frequency)
+   pi = p * i
+   k = par_value / ( ( 1 + ytm/frequency ) ** periods)
+   price = k + pi
+   return (price)
 

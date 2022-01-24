@@ -307,6 +307,22 @@ def join_inflation(
 
     return df    
 
+def join_infl(
+    df_bpy: pd.DataFrame,    
+    df_inflation: pd.DataFrame,        
+    country: str = 'Germany'
+) -> pd.DataFrame:    
+
+    if country == '':
+        df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
+        df = df_bpy.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+    else:
+        df_inflation = df_inflation[df_inflation['country'] == country]
+        df_inflation = pd.pivot(df_inflation, index = ['rate_dt'], columns = ['timeband'], values = 'inflation')
+        df = df_bpy.merge(df_inflation, left_on = ['rate_dt'], right_index=True, how = 'inner')
+        
+    return df    
+
 def join_yield(    
     df: pd.DataFrame,
     df_yield: pd.DataFrame,    
@@ -331,13 +347,14 @@ def join_ytm(
     df_yield: pd.DataFrame
 ) -> pd.DataFrame:
     ''' Calculate for each bond per rate datae the Yield to Maturity '''
-    df = df_bp.merge(df_yield, left_on = ['country','rate_dt'], right_index=['country','rate_dt'], how = 'inner')
-    df = df[ df.time.dt.days > df.remain_duration ]
-    df = df[ df['remain_duration'] == df['remain_duration'].min()  ]
+    df_y = df_yield[['country', 'rate_dt','time', 'mid']].rename(columns={ 'mid': 'ytm'})
+    df = df_bp.merge(df_y, on = ['country','rate_dt'], how = 'inner')
+    df = df[ df['time'].dt.days > df.remain_duration ]
+    df = df.sort_values(by = ['reference_identifier','rate_dt','time'])
+    df = df.groupby(['reference_identifier','rate_dt']).first()
+    df = df.reset_index()
+
     return df
-
-
-
 
 
 def fulljoin(
