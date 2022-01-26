@@ -19,7 +19,12 @@ class HyperRnn(tf.keras.Model):
         # reshape 2D input into 3D data only if input is 2d.
         self.reshape = tfl.Reshape((config["window"], config["features"]))        
 
-        # one convolution
+        # one convolution        
+        if config['filers'] == 0:
+            self._convolutional_layers = False
+        else:
+            self._convolutional_layers = True
+
         self.conv = tfl.Conv1D(
             filters=config["filters"],
             kernel_size=config["kernel"],
@@ -56,7 +61,8 @@ class HyperRnn(tf.keras.Model):
 
     def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:        
         x = self.reshape(x)
-        x = self.conv(x)
+        if self._convolutional_layers:
+            x = self.conv(x)
         for layer in self.hidden:
             x = layer(x)
         x = self.out(x)
