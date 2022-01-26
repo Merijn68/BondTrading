@@ -207,14 +207,15 @@ def impute_yield(
 
     
 def get_inflation(    
-    countrydict: dict = {'DE': 'Germany','FR': 'France','ES': 'Spain','IT': 'Italy','US': 'United States'}
+    countrydict: dict = {'DE': 'Germany','FR': 'France','ES': 'Spain','IT': 'Italy','US': 'United States'},
+    path: Path = Path("../data/raw"),    
 )    -> pd.DataFrame:
     logger.info('Load goverment yield curve data')
     
     df = pd.DataFrame()
     for country in countrydict:
-        path = Path(f"../data/raw/{country} Inflation.csv")
-        dfc = read_csv(path, skiprows = 2,  header=None)
+        filepath = Path(path, f"{country} Inflation.csv")
+        dfc = read_csv(filepath, skiprows = 2,  header=None)
         if not dfc.empty:
             dfc = dfc.iloc[:,2:17]        
             dfc.columns = ['rate_dt','1 YEAR','2 YEARS', '3 YEARS','4 YEARS', '5 YEARS','6 YEARS','7 YEARS','8 YEARS','9 YEARS','10 YEARS',
