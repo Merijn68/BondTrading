@@ -20,7 +20,7 @@ class HyperRnn(tf.keras.Model):
         self.reshape = tfl.Reshape((config["window"], config["features"]))        
 
         # one convolution        
-        if config['filers'] == 0:
+        if config['filters'] == 0:
             self._convolutional_layers = False
         else:
             self._convolutional_layers = True
@@ -28,6 +28,7 @@ class HyperRnn(tf.keras.Model):
         self.conv = tfl.Conv1D(
             filters=config["filters"],
             kernel_size=config["kernel"],
+            activation=config["activation"],
             strides=1,
             padding="same",
         )
