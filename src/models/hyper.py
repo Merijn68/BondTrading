@@ -16,8 +16,8 @@ class HyperRnn(tf.keras.Model):
     def __init__(self: tf.keras.Model, config: Dict) -> None:
         super().__init__()
 
-        # reshape 2D input into 3D data
-        self.reshape = tfl.Reshape((config["window"], 1))
+        # reshape 2D input into 3D data only if input is 2d.
+        self.reshape = tfl.Reshape((config["window"], config["features"]))        
 
         # one convolution
         self.conv = tfl.Conv1D(
@@ -54,7 +54,7 @@ class HyperRnn(tf.keras.Model):
         self.out = tfl.Dense(config["horizon"])
         # self.out = tfl.TimeDistributed(tfl.Dense(config["horizon"]))
 
-    def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
+    def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:        
         x = self.reshape(x)
         x = self.conv(x)
         for layer in self.hidden:
@@ -95,7 +95,7 @@ def train_hypermodel(
         tf.summary.scalar("learning rate", data=learning_rate, step=epoch)
         return learning_rate
 
-    lrs = tf.keras.callbacks.LearningRateScheduler(scheduler)
+    lrs = tf.keras.callbacks.LearningRateScheduler(scheduler)    
     model = HyperRnn(config)
     model.compile(loss="mse", optimizer=tf.keras.optimizers.Adam(), metrics=["mae"])
 
@@ -112,7 +112,7 @@ def train_hypermodel(
         train_set,
         epochs=config["epochs"],
         validation_data=valid_set,
-        callbacks=callbacks,
+        callbacks=callbacks,        
     )
 
     return model

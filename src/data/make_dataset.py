@@ -1,6 +1,7 @@
 """
     Pre process data from raw to processed data
 
+
 """
 
 
@@ -321,6 +322,8 @@ def join_infl(
         df_inflation = pd.pivot(df_inflation, index = ['rate_dt'], columns = ['timeband'], values = 'inflation')
         df = df_bpy.merge(df_inflation, left_on = ['rate_dt'], right_index=True, how = 'inner')
         
+    df = df.dropna(subset = ['10 YEARS'])
+
     return df    
 
 def join_yield(    
@@ -338,7 +341,6 @@ def join_yield(
     df_yield_pivot = df_yield_pivot[columns]
     df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
 
-    
     return df    
 
 

@@ -77,7 +77,7 @@ def add_bid_offer_spread(
   bids = [''.join(('y_bid',str(year))) for year in years]
   offers =  [''.join(('y_offer',str(year))) for year in years]
   df_spread = pd.DataFrame(df[bids].to_numpy() - -df[offers].to_numpy())
-  columns = [''.join(('y_spread_',str(year))) for year in years]
+  columns = [''.join(('bid_offer_spread_',str(year))) for year in years]
   df_spread.columns = columns
 
   df = pd.concat([df,df_spread], axis = 1 )
