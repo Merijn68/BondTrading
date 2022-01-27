@@ -17,9 +17,9 @@ def windowed_dataset(
     ds = ds.window(window_size + horizon, shift=1, drop_remainder=True) # shifted windows. +1 for target value
     ds = ds.flat_map(lambda w: w.batch(window_size + horizon)) # map into lists of size batch+target
     ds = ds.shuffle(shuffle_buffer)
-    # number of columns 
-    columns = np.shape(data)[1]
-    if columns > 1:
+
+    # number of features > 1
+    if data.ndim > 1:        
         ds = ds.map(lambda w: (w[:-horizon], w[-horizon:,0])) 
     else:
         ds = ds.map(lambda w: (w[:-horizon], w[-horizon:])) # split into data and target, x and y

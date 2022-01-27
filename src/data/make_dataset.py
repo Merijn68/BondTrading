@@ -389,7 +389,7 @@ def fulljoin(
     df_yield_pivot = df_yield_pivot[columns]
 
     df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
+    
     # Join country spread    
     df_countryspread = pd.pivot(df_countryspread, index = ['rate_dt'], columns = ['timeband'])
         
@@ -399,12 +399,13 @@ def fulljoin(
 
 def save_pkl(
     name: str,
-    df: pd.DataFrame 
+    df: pd.DataFrame,
+    protocol :  int = 4
 ):
-    # Store processed data
+    """ Store processed data """
     logger.info(f'Save preprocessed {name} data')
     try:
-        df.to_pickle(f'../data/processed/{name}.pkl', protocol = 4)  # Set protocol to 4 for Colab
+        df.to_pickle(f'../data/processed/{name}.pkl', protocol = protocol)  # Set protocol to 4 for Colab
         df.to_csv(f'../data/processed/{name}.csv')
     except Exception as error:      
         logger.error(f"Error saving {name} data: {error}")
@@ -414,7 +415,7 @@ def read_pkl(
     path = Path("../data/processed/"),    
     filename_suffix = 'pkl'
 ) -> pd.DataFrame:
-    # load processed data
+    """ load processed data """
     logger.info(f'Load preprocessed {name} data')
     df = pd.DataFrame()
     if not path.is_dir():

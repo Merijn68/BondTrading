@@ -54,8 +54,13 @@ class HyperRnn(tf.keras.Model):
             if config["timeDistributed"]:
                 self.hidden += [ tfl.TimeDistributed( tfl.Dense(config["horizon"])) ] 
 
+        # dropout on last layer
+        if config["dropout"]:
+            dropout = config["dropout"]
+        else:
+            dropout = 0
         # Last output cells should also return sequence
-        self.hidden = [self.cell(units, return_sequences=False)]
+        self.hidden = [self.cell(units, return_sequences=False, dropout = dropout)]
         
         self.out = tfl.Dense(config["horizon"])
         # self.out = tfl.TimeDistributed(tfl.Dense(config["horizon"]))
@@ -68,9 +73,7 @@ class HyperRnn(tf.keras.Model):
             x = layer(x)
         x = self.out(x)
         return x
-
-
-
+        
 def train_hypermodel(
     train: np.ndarray,
     test: np.ndarray,
