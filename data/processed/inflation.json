@@ -1,0 +1,1 @@
+{"dtype": {"country": "object", "rate_dt": "string", "timeband": "object", "inflation": "float", "ratename": "object", "actual_dt": "string", "time": "object"}, "parse_dates": ["rate_dt", "actual_dt"]}

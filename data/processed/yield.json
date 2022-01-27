@@ -1,0 +1,1 @@
+{"dtype": {"country": "object", "rate_dt": "string", "timeband": "object", "ratename": "object", "ccy": "object", "actual_dt": "string", "datedays": "int", "bid": "float", "offer": "float", "int_basis": "object", "time": "object", "mid": "float"}, "parse_dates": ["rate_dt", "actual_dt"]}

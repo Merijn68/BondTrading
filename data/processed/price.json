@@ -1,0 +1,1 @@
+{"dtype": {"reference_identifier": "object", "ccy": "object", "rate_dt": "string", "mid": "float", "lastday": "object"}, "parse_dates": ["rate_dt"]}

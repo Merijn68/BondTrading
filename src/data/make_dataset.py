@@ -5,8 +5,11 @@
 """
 
 
+from importlib.machinery import DEBUG_BYTECODE_SUFFIXES
+from xmlrpc.client import Boolean
 import pandas as pd
 import numpy as np
+import json
 #from pandas.core.tools.datetimes import Datetime
 
 import sys
@@ -35,10 +38,19 @@ def read_csv(
     
     return df
 
+def read_data(
+    name : str,
+    path : Path = Path("../data/processed/"),
+    thousands:str = ',',
+    *args,
+    **kwargs    
+) -> pd.DataFrame:
+    path = Path(path, name + '.csv')
+    df = read_csv(path, thousands, *args, **kwargs)    
+    return df
 
-def get_bond_data(        
-    ccy: str = '',
-    path: Path = Path("../data/raw/bonds.csv"),
+def get_bond_data(            
+    path: Path = Path("../data/raw/bonds.csv"),    
 ) -> pd.DataFrame:
     logger.info('Load bond data')
     ''' Read raw bond data from CSV, drop columns and format data '''    
@@ -52,7 +64,7 @@ def get_bond_data(
     df = df.drop(['bondname', 'group_name','fix_float','cparty_type','CO2_factor'], axis = 1)
 
     # Correct columns types
-    for column in ['cfi_code','isin','ccy','issuer_name','coupon_frq','country_name','issue_rating']:
+    for column in ['cfi_code','isin','ccy','issuer_name','coupon_frq','country_name','issue_rating','bond_ext_name']:
         df[column] = df[column].astype('string')
 
     #for column in ['issue_dt','first_coupon_date','mature_dt' ]:
@@ -286,6 +298,7 @@ def make_data(
     save_pkl('bpy', df_bpy)
 
 
+
 def join_price(
     df_bonds: pd.DataFrame,
     df_price: pd.DataFrame
@@ -405,29 +418,69 @@ def save_pkl(
     """ Store processed data """
     logger.info(f'Save preprocessed {name} data')
     try:
-        df.to_pickle(f'../data/processed/{name}.pkl', protocol = protocol)  # Set protocol to 4 for Colab
+
+        df.to_pickle(f'../data/processed/{name}.pkl', protocol = protocol) 
+
+        # Include metadata
+        data = {}        
+        dtype = {}
+        for column in df.columns:    
+            if column in df.select_dtypes(include=[np.datetime64]).columns:
+                dtype[column] = 'string'
+            elif column in df.select_dtypes(include=[np.float64]).columns:
+                dtype[column] = 'float'        
+            elif column in df.select_dtypes(include=[np.int64]).columns:
+                dtype[column] = 'int'  
+            else:
+                dtype[column] = 'object'
+        data['dtype'] = dtype
+        data['parse_dates'] = df.select_dtypes(include=[np.datetime64]).columns.tolist()
+
+        f = open(f'../data/processed/{name}.json', "w")
+        json.dump(data, f)
+        f.close()
         df.to_csv(f'../data/processed/{name}.csv')
+
     except Exception as error:      
         logger.error(f"Error saving {name} data: {error}")
 
 def read_pkl(
     name: str,
-    path = Path("../data/processed/"),    
-    filename_suffix = 'pkl'
+    path = Path("../data/processed/"),        
+    format : str = 'pkl'
 ) -> pd.DataFrame:
     """ load processed data """
     logger.info(f'Load preprocessed {name} data')
+        
     df = pd.DataFrame()
     if not path.is_dir():
         logger.error(f'Directory {path} not found')
     else:
-        path = Path(path, name + "." + filename_suffix)
-        if not path.exists():
-            logger.error(f'File {path} not found')
-        else:                
-            df = pd.read_pickle(path)
-    
+
+        if  format == 'CSV':
+            filepath =  Path(path, name + ".json")
+            if filepath.exists():
+                f = open( Path(path, f'{name}.json') )
+                data = json.load(f)
+                f.close
+            filepath =  Path(path, name + ".csv")
+            if filepath.exists():
+                if data:
+                    df.read_csv(filepath, parse_date = data['date_cols'], dtype = data['dtypes'])
+                else:
+                    logger.info(f'Metadata missing for file {name}')
+                    df.read_csv(filepath, data)
+            else:
+                 logger.error(f'File {path} not found')            
+        else: 
+            path = Path(path, name + ".pkl")
+            if not path.exists():
+                logger.error(f'File {path} not found')
+            else:                
+                df = pd.read_pickle(path)
+        
     return df
+
 
 def build_simple_input(
     df_bonds: pd.DataFrame,
