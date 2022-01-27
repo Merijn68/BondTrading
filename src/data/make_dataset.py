@@ -1,26 +1,16 @@
 """
     Pre process data from raw to processed data
-
-
 """
 
-
-from importlib.machinery import DEBUG_BYTECODE_SUFFIXES
-from xmlrpc.client import Boolean
 import pandas as pd
 import numpy as np
 import json
-#from pandas.core.tools.datetimes import Datetime
-
 import sys
 from pathlib import Path
-from typing import Tuple, Union, List
+from typing import List
 from loguru import logger
 from src.features import build_features
-from datetime import date
-
-sys.path.insert(0, "..")
-
+from src.data import join_data
 
 def read_csv(
     path: Path = Path("../data/raw/bonds.csv"),
@@ -28,25 +18,14 @@ def read_csv(
     *args,
     **kwargs    
 ) -> pd.DataFrame:
+    """ read a csv file with some logging """
+
     logger.info(f"Loading data from {path}")
     df = pd.DataFrame()
     try:
         df = pd.read_csv(path, thousands=thousands, dayfirst=True, *args, **kwargs )
-
     except Exception as error:      
         logger.error(f"Error loading data: {error}")
-    
-    return df
-
-def read_data(
-    name : str,
-    path : Path = Path("../data/processed/"),
-    thousands:str = ',',
-    *args,
-    **kwargs    
-) -> pd.DataFrame:
-    path = Path(path, name + '.csv')
-    df = read_csv(path, thousands, *args, **kwargs)    
     return df
 
 def get_bond_data(            
@@ -113,19 +92,18 @@ def impute_bonds(
     # voor nu verwijderen we deze bonds
     df = df[~df['issue_rating'].isnull()]    
 
+    # Nice name for presentations
+    df['issue'] = df['isin'] + ' ' +  df['country'] + ' ' + df['bond_ext_name'].str.split(n=1).str[1]
+
+
     return df
  
 
-def get_price(
-    ids: np.array  = [],
+def get_price(    
     path: Path = Path("../data/raw/price.csv"),
 ) -> pd.DataFrame:
-    '''
-        Load price data
-        If array of ISIN's is given only prices for these ISINs will be returned.
-        But all prices are loaded first...
-
-    '''
+    """ load raw bond price data """
+            
     logger.info('Load bond price data')
     
     df = read_csv(path,  parse_dates = ['rate_dt'])
@@ -148,6 +126,7 @@ def get_price(
 def impute_price(
      df: pd.DataFrame,
 ) -> pd.DataFrame:
+    """ Impute raw bond price data """
 
     logger.info('Impute bond price')
 
@@ -165,6 +144,8 @@ def impute_price(
 def get_yield(
     path: Path = Path("../data/raw/yield.csv"),
 ) -> pd.DataFrame:
+    """ load raw yield data """
+
     logger.info('Load goverment yield curve data')
 
     country_dict = {'DE': 'Germany','FR': 'France','ES': 'Spain','IT': 'Italy','NL': 'Netherlands'}
@@ -194,10 +175,11 @@ def get_yield(
 def impute_yield(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
+    """ Impute yield data """
 
     logger.info('Impute yield curve')
 
-    # Drop MM curves only Bond Based curves are actually correct
+    # Drop MM curves only Bond Based curves are correct
     df = df[df['ratename'].str.contains('BB')].copy()    
 
     # Herberekenen actual dt -> zodat deze in lijn is met de inflatie data (geen rekening houden met holidays)     
@@ -215,13 +197,13 @@ def impute_yield(
     df[df['rate_dt'] >= '1-jan-2010']
     
     return df
-
-
     
 def get_inflation(    
     countrydict: dict = {'DE': 'Germany','FR': 'France','ES': 'Spain','IT': 'Italy','US': 'United States'},
     path: Path = Path("../data/raw"),    
 )    -> pd.DataFrame:
+    """ load inflation data """
+
     logger.info('Load goverment yield curve data')
     
     df = pd.DataFrame()
@@ -248,7 +230,7 @@ def get_inflation(
 def impute_inflation(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-
+    """ Impute raw inflation data """
 
     logger.info('Impute inflation curve')
 
@@ -268,7 +250,7 @@ def impute_inflation(
 
 def make_data(
 ):
-    ''' Generate all data preprocessing '''
+    """" Generate all data preprocessing """
     df_bonds = get_bond_data()
     df_bonds = impute_bonds(df_bonds)
     save_pkl('bonds', df_bonds)
@@ -285,129 +267,50 @@ def make_data(
     df_inflation = impute_inflation(df_inflation)    
     save_pkl('inflation', df_inflation)
     
-    df_bp = join_price(df_bonds,df_price )
+    df_bp = join_data.join_price(df_bonds,df_price )
     df_bp = build_features.add_duration(df_bp)    
-    save_pkl('bp', df_bp)
+    save_pkl('bp', df_bp)    
 
-    df_tf = build_simple_input(df_bonds, df_price)    
-    save_pkl('tf', df_tf)
-
-    df_bpy = join_yield(df_bp, df_yield)    
+    df_bpy = join_data.join_yield(df_bp, df_yield)    
     df_bpy = build_features.add_term_spread(df_bpy)
     df_bpy = build_features.add_bid_offer_spread(df_bpy)
     save_pkl('bpy', df_bpy)
 
+# def fulljoin(
+#     df_bonds: pd.DataFrame,
+#     df_price: pd.DataFrame,
+#     df_inflation: pd.DataFrame,    
+#     df_yield: pd.DataFrame,        
+#     df_countryspread: pd.DataFrame,  
+# ) -> pd.DataFrame:
+
+#     # Join bond price
+#     df = join_price(df_bonds, df_price)
 
 
-def join_price(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame
-) -> pd.DataFrame:
+#     # Join inflation
+#     df_inflation_pivot = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')    
+#     df_inflation_pivot.columns = [''.join(('inflation_',col)).replace('YEARS','').replace('YEAR','').strip() for col in df_inflation_pivot.columns]
+#     columns = df_inflation_pivot.columns.to_list()
+#     columns.sort(key=lambda x: int(x[10:]))
+#     df_inflation_pivot = df_inflation_pivot[columns]
+
+#     df = df.merge(df_inflation_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
+
+#     # Join yield
+#     df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
+#     df_yield_pivot.columns = [''.join(('yield_',''.join(tup))).replace('YEARS','').replace('YEAR','').strip() for tup in df_yield_pivot.columns]
+#     columns = df_yield_pivot.columns.to_list()
+#     columns.sort(key=lambda x: int(x[6:].replace('bid','').replace('offer','')))
+#     df_yield_pivot = df_yield_pivot[columns]
+
+#     df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
     
-    df_bonds = df_bonds.drop('ccy', axis = 1)                          
-    df = df_price.merge(df_bonds, left_on = 'reference_identifier', right_on='isin',  how = 'left')
-        
-    return df
-
-def join_inflation(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame,
-    df_inflation: pd.DataFrame,        
-) -> pd.DataFrame:
-        
-    df = join_price(df_bonds, df_price)
-
-    df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
-    df = df.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
-    return df    
-
-def join_infl(
-    df_bpy: pd.DataFrame,    
-    df_inflation: pd.DataFrame,        
-    country: str = 'Germany'
-) -> pd.DataFrame:    
-
-    if country == '':
-        df_inflation = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
-        df = df_bpy.merge(df_inflation, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-    else:
-        df_inflation = df_inflation[df_inflation['country'] == country]
-        df_inflation = pd.pivot(df_inflation, index = ['rate_dt'], columns = ['timeband'], values = 'inflation')
-        df = df_bpy.merge(df_inflation, left_on = ['rate_dt'], right_index=True, how = 'inner')
-        
-    df = df.dropna(subset = ['10 YEARS'])
-
-    return df    
-
-def join_yield(    
-    df: pd.DataFrame,
-    df_yield: pd.DataFrame,    
-) -> pd.DataFrame:
-    
-    df_yield['offset'] = df_yield['timeband'].str.extract('(\d+)')
-
-    # Join yield
-    df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['offset'], values = ['bid','offer'])
-    df_yield_pivot.columns = [''.join(('y_',''.join(tup))).strip() for tup in df_yield_pivot.columns]
-    columns = df_yield_pivot.columns.to_list()
-    columns.sort(key=lambda x: int(x.replace('y_bid','').replace('y_offer','')))
-    df_yield_pivot = df_yield_pivot[columns]
-    df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
-    return df    
-
-
-def join_ytm(
-    df_bp: pd.DataFrame,
-    df_yield: pd.DataFrame
-) -> pd.DataFrame:
-    ''' Calculate for each bond per rate datae the Yield to Maturity '''
-    df_y = df_yield[['country', 'rate_dt','time', 'mid']].rename(columns={ 'mid': 'ytm'})
-    df = df_bp.merge(df_y, on = ['country','rate_dt'], how = 'inner')
-    df = df[ df['time'].dt.days > df.remain_duration ]
-    df = df.sort_values(by = ['reference_identifier','rate_dt','time'])
-    df = df.groupby(['reference_identifier','rate_dt']).first()
-    df = df.reset_index()
-
-    return df
-
-
-def fulljoin(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame,
-    df_inflation: pd.DataFrame,    
-    df_yield: pd.DataFrame,        
-    df_countryspread: pd.DataFrame,  
-) -> pd.DataFrame:
-
-    # Join bond price
-    df = join_price(df_bonds, df_price)
-
-
-    # Join inflation
-    df_inflation_pivot = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')    
-    df_inflation_pivot.columns = [''.join(('inflation_',col)).replace('YEARS','').replace('YEAR','').strip() for col in df_inflation_pivot.columns]
-    columns = df_inflation_pivot.columns.to_list()
-    columns.sort(key=lambda x: int(x[10:]))
-    df_inflation_pivot = df_inflation_pivot[columns]
-
-    df = df.merge(df_inflation_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
-    # Join yield
-    df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
-    df_yield_pivot.columns = [''.join(('yield_',''.join(tup))).replace('YEARS','').replace('YEAR','').strip() for tup in df_yield_pivot.columns]
-    columns = df_yield_pivot.columns.to_list()
-    columns.sort(key=lambda x: int(x[6:].replace('bid','').replace('offer','')))
-    df_yield_pivot = df_yield_pivot[columns]
-
-    df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-    
-    # Join country spread    
-    df_countryspread = pd.pivot(df_countryspread, index = ['rate_dt'], columns = ['timeband'])
+#     # Join country spread    
+#     df_countryspread = pd.pivot(df_countryspread, index = ['rate_dt'], columns = ['timeband'])
         
 
-    return df    
+#     return df    
 
 
 def save_pkl(
@@ -482,86 +385,49 @@ def read_pkl(
     return df
 
 
-def build_simple_input(
-    df_bonds: pd.DataFrame,
-    df_price: pd.DataFrame
-) -> pd.DataFrame:
-    ''' Build a simple format for tensorflow '''
+# def read_single_bond(
+#     isin:   str,
+#     train_perc  :  float = 0.70,
+#     val_perc    :  float = 0.20,
+#     test_perc   :  float = 0.10,
+# ) -> pd.DataFrame:
 
-    df_bp = join_price(df_bonds,df_price )    
-    df_bp = build_features.add_duration(df_bp)    
+#     df = read_pkl('price')
+#     df = df[df['reference_identifier'] == isin]
+#     df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
 
-    # Alle geselecteerde bonds zijn in EUR. Referrence_identifier en ISIN zijn dubbel
-    df_bp = df_bp.drop(['ccy','reference_identifier'], axis = 1)    
-    df_bp = build_features.encode_coupon_freq(df_bp)    
-    df_bp = build_features.encode_cfi(df_bp)
-
-    return df_bp
-
-
-def split_data(
-    df          :  pd.DataFrame,
-    train_perc  :  float = 0.70,
-    val_perc    :  float = 0.20,
-    test_perc   :  float = 0.10,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-
-
-    n = len(df)
-    df_train = df[0:int(n*train_perc)]
-    df_val = df[int(n*train_perc):int(n*(train_perc+val_perc))]
-    df_test = df[int(n*(1-test_perc)):]
-
-    logger.info(f'Data {len(df)}')
-    logger.info(f'Training {len(df_train)}')
-    logger.info(f'Validation {len(df_val)}')
-    logger.info(f'Test {len(df_test)}')
-
-    return (df_train, df_val, df_test)
-
-def read_single_bond(
-    isin:   str,
-    train_perc  :  float = 0.70,
-    val_perc    :  float = 0.20,
-    test_perc   :  float = 0.10,
-) -> pd.DataFrame:
-
-    df = read_pkl('price')
-    df = df[df['reference_identifier'] == isin]
-    df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
-
-    df_train = df_train.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
-    df_val = df_val.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
-    df_test = df_test.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+#     df_train = df_train.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+#     df_val = df_val.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
+#     df_test = df_test.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
     
-    return (df_train, df_val, df_test)
+#     return (df_train, df_val, df_test)
 
-def read_bond_with_features( 
-    isin        :   str,
-    features    :   List[str] = [],
-    train_perc  :   float = 0.70,
-    val_perc    :   float = 0.20,
-    test_perc   :   float = 0.10,
-    label_var   :   str = 'mid',
-    time_var    :   str = 'rate_dt'
-) -> pd.DataFrame:
+# def read_bond_with_features( 
+#     isin        :   str,
+#     features    :   List[str] = [],
+#     train_perc  :   float = 0.70,
+#     val_perc    :   float = 0.20,
+#     test_perc   :   float = 0.10,
+#     label_var   :   str = 'mid',
+#     time_var    :   str = 'rate_dt'
+# ) -> pd.DataFrame:
 
-    df_price = read_pkl('price')    
-    df_bonds = read_pkl('bonds')   
+#     df_price = read_pkl('price')    
+#     df_bonds = read_pkl('bonds')   
 
-    # Select a single bond 
-    df_bonds = df_bonds[df_bonds['isin'] == isin]
-    df_price = df_price[df_price['reference_identifier'] == isin]
+#     # Select a single bond 
+#     df_bonds = df_bonds[df_bonds['isin'] == isin]
+#     df_price = df_price[df_price['reference_identifier'] == isin]
 
-    df = build_simple_input(df_bonds, df_price )
+#     df = build_simple_input(df_bonds, df_price )
 
-    if features:
-        variables = [label_var, *features] 
-        df = df.filter(variables)
+#     if features:
+#         variables = [label_var, *features] 
+#         df = df.filter(variables)
 
-    df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
+#     df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
 
 
-    return (df_train, df_val, df_test)
+#     return (df_train, df_val, df_test)
 
 

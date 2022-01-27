@@ -1,24 +1,29 @@
+"""
+    Time series visualizations
+"""
+
 from re import X
 import seaborn as sns
 import pandas as pd
 import numpy as np
 import math
 import tensorflow as tf
-import random
+
 import matplotlib as mpl
 from   matplotlib import pyplot as plt
 from   pathlib import Path
 
 from xmlrpc.client import Boolean
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Optional
 
 
+# Generic setup parameters for Matplotlib
+figsize=(10,6)
 mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['ps.fonttype'] = 42
 mpl.rcParams['font.family'] = 'Arial'
 mpl.rcParams['font.family'] = 'Arial'
-figsize=(10,6)
-
+mpl.rcParams["figure.figsize"] = figsize
 
 def countplot(
     data: pd.DataFrame, 
@@ -31,7 +36,7 @@ def countplot(
     name: str = 'countplot',
     figurepath: Path = Path("../reports/figures")
 ):
-
+    """ Grouped count plot """
     if subplots:
         number_of_items = len(x)
         nrows = math.ceil(number_of_items / ncols)
@@ -60,23 +65,26 @@ def countplot(
 
 
 def boxplot(
-    data: np.ndarray,
+    data: pd.DataFrame,    
     x: str,
-    y: str,    
-    hue: str = '',
+    y: str,           
+    hue: str = '', 
+    order: List[str] = [],
     figsize: Tuple[int, int] = figsize,
     name: str = 'boxplot',
-    figurepath: Path = Path("../reports/figures")    
-) -> None:
-    plt.figure(figsize=figsize)
+    figurepath: Path = Path("../reports/figures")
+) -> plt.Axes:  
+    """ simple box plot """    
+    plt.figure(figsize=figsize)        
+    if not order:
+        order = data.groupby(by=[x])[y].median().iloc[::1].index
     if hue:
         sns.boxplot(data=data, x=x, y=y, hue=hue)
-    else:
-        sns.boxplot(data=data, x=x, y=y)
+    else:                 
+        ax = sns.boxplot(data = data, x = x, y = y, order = order)            
     plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
-    
-    # plt.xticks(rotation=90)
 
+    return ax
 
 def lineplot(
     data: pd.DataFrame,    
@@ -87,6 +95,7 @@ def lineplot(
     name: str = 'lineplot',
     figurepath: Path = Path("../reports/figures")   
 ) -> plt.Axes:  
+    """ simple line plot"""
 
     plt.figure(figsize=figsize)    
     ax = sns.lineplot(data = data, x = x, y = y, hue =  hue)
@@ -101,14 +110,13 @@ def timeplot(
     name: str = 'timeplot',
     figurepath: Path = Path("../reports/figures") 
 ) -> plt.Axes:  
+    """ Plot train and Test data in one plot """
     plt.figure(figsize=figsize) 
     ax = sns.lineplot(data = train, x = train.index, y = train.values)
     sns.lineplot(data = test, x = test.index, y = test.values, ax = ax)
     plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
     return ax
-    
-
-
+      
 def scatterplot(
     data: pd.DataFrame,    
     x: str,
@@ -122,22 +130,6 @@ def scatterplot(
     
     plt.figure(figsize=figsize)    
     ax = sns.scatterplot(data = data, x = x, y = y, hue = hue, label = label)
-    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
-
-    return ax
-
-def boxplot(
-    data: pd.DataFrame,    
-    x: str,
-    y: str,            
-    order: List[str] = [],
-    figsize: Tuple[int, int] = figsize,
-    name: str = 'boxplot',
-    figurepath: Path = Path("../reports/figures")
-) -> plt.Axes:  
-    
-    plt.figure(figsize=figsize)        
-    ax = sns.boxplot(data = data, x = x, y = y, order = order)    
     plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
     return ax
