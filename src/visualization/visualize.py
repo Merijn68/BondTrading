@@ -34,14 +34,15 @@ def countplot(
     other_category = True,
     title: str = '',  
     name: str = 'countplot',
+    figsize: Tuple[int, int] = figsize,
     figurepath: Path = Path("../reports/figures")
-):
+) -> plt.Axes:  
     """ Grouped count plot """
     if subplots:
         number_of_items = len(x)
-        nrows = math.ceil(number_of_items / ncols)
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
-
+        nrows = math.ceil(number_of_items / ncols)                
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols,  figsize = figsize)
+        
         
         if title:
             fig.suptitle(title)
@@ -61,7 +62,8 @@ def countplot(
     else:
         ax = sns.countplot(data = data, y = x[0], order = data[x[0]].value_counts().index)
         ax.set(xlabel="", ylabel = "")
-    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')      
+    return ax
 
 
 def boxplot(
@@ -90,7 +92,10 @@ def lineplot(
     data: pd.DataFrame,    
     x: str,
     y: str,    
+    x_label: str = '',
+    y_label: str = '',
     hue: str = '',
+    hue_order: List = [],
     figsize: Tuple[int, int] = figsize, 
     name: str = 'lineplot',
     figurepath: Path = Path("../reports/figures")   
@@ -98,10 +103,73 @@ def lineplot(
     """ simple line plot"""
 
     plt.figure(figsize=figsize)    
-    ax = sns.lineplot(data = data, x = x, y = y, hue =  hue)
+    if hue_order: 
+        ax = sns.lineplot(data = data, x = x, y = y, hue =  hue, hue_order = hue_order)
+    else:
+        ax = sns.lineplot(data = data, x = x, y = y, hue =  hue)
+
+
+    if x_label:
+        ax.set_xlabel(x_label)
+    if y_label: 
+        ax.set_ylabel(y_label)    
+
+    plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
+    return ax
+
+def lineplot2(
+    data: pd.DataFrame,    
+    data2: pd.DataFrame,    
+    x: str,
+    y: str,    
+    y2: str,   
+    x_label: str,
+    y_label: str,
+    y2_label: str,
+    label: str,
+    label2: str,
+    figsize: Tuple[int, int] = figsize, 
+    invert_yaxis2: Boolean = False,
+    name: str = 'doublelineplot',
+    figurepath: Path = Path("../reports/figures")   
+) -> plt.Axes:  
+    """ double y axis line plot"""
+
+    plt.figure(figsize=figsize) 
+
+
+    ax = sns.lineplot(data = data, x = x, y = y,label = label, color = 'black')
+    ax2 = plt.twinx()    
+    sns.lineplot(data = data2, x = x, y = y2, label = label2, ax=ax2)
+    
+    lines1, labels1 = ax.get_legend_handles_labels() 
+    lines2, labels2 = ax2.get_legend_handles_labels()     
+    ax.get_legend().remove()
+    ax2.legend(lines1 + lines2, labels1 + labels2, loc=0)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax2.set_ylabel(y2_label)
+
+    if invert_yaxis2:
+        ax2.invert_yaxis()
+
     plt.savefig(Path(figurepath, name + '.svg'),  bbox_inches = 'tight')  
 
     return ax
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def timeplot(
     train: pd.Series,
