@@ -161,6 +161,8 @@ def lineplot2(
 def timeplot(
     train: pd.Series,
     test: pd.Series,
+    x_label: str = "",
+    y_label: str = "",
     figsize: Tuple[int, int] = figsize,
     name: str = "timeplot",
     figurepath: Path = Path("../reports/figures"),
@@ -168,6 +170,10 @@ def timeplot(
     """Plot train and Test data in one plot"""
     plt.figure(figsize=figsize)
     ax = sns.lineplot(data=train, x=train.index, y=train.values)
+    if x_label:
+        ax.set_xlabel(x_label)
+    if y_label:
+        ax.set_ylabel(y_label)
     sns.lineplot(data=test, x=test.index, y=test.values, ax=ax)
     plt.savefig(Path(figurepath, name + ".svg"), bbox_inches="tight")
     return ax
@@ -245,6 +251,7 @@ def plot_example(
         nrows=examples, ncols=1, sharey=True, sharex=True, figsize=figsize
     )
     fig.tight_layout()
+    fig.suptitle(model.name)
     for sample, ax in zip(samples, axes.flatten()):
 
         if x.ndim > 2:  # More features : Eerste feature is het signaal
@@ -267,6 +274,7 @@ def plot_example(
                 s=64,
             )
 
+    fig.tight_layout()
     plt.savefig(Path(figurepath, model.name + ".svg"), bbox_inches="tight")
 
     return fig

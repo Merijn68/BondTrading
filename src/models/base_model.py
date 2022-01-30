@@ -38,23 +38,6 @@ def calc_mae_for_horizon(
     return norm
 
 
-# def simple_model(
-#     window_size: int = 32,
-#     units: int = 1,
-#     type="RNN",
-#     horizon: int = 1,
-# ):
-#     """A simple model for time series analyses"""
-
-#     model = Sequential()
-#     model.add(tfl.Reshape((window_size, 1)))
-#     if type == "RNN":
-#         model.add(tfl.SimpleRNN(units)),
-#     model.add(tfl.Dense(horizon))
-
-#     return model
-
-
 class BaseModel(tf.keras.Model):
     def __init__(self: tf.keras.Model, name: str, config: Dict) -> None:
         super().__init__(name=name)
@@ -128,12 +111,17 @@ class RnnModel(BaseModel):
         # Try to see if adding a timedistributed dense layer helps
         config.setdefault("timeDistributed", False)
         if config["timeDistributed"]:
-            self.hidden += [tfl.TimeDistributed(tfl.Dense(config["horizon"]))]
+            self.out = [tfl.TimeDistributed(tfl.Dense(config["horizon"]))]
+            return_sequences = True
+        else:
+            return_sequences = False
 
-        # Last output cells should not return sequence
+        # Last output cells should return sequence if time distributed model (vector-to-vector)
         self.hidden += [
             self.cell(
-                config["units"], return_sequences=False, dropout=config["dropout"]
+                config["units"],
+                return_sequences=return_sequences,
+                dropout=config["dropout"],
             )
         ]
 
@@ -147,22 +135,3 @@ class RnnModel(BaseModel):
         x = self.out(x)
 
         return x
-
-
-# def time_distributed(
-#     window_size: int = 32,
-#     units: int = 1,
-#     type="RNN",
-#     horizon: int = 1,
-# ):
-#     """A simple model for time series analyses with time distributed dense layer"""
-
-#     model = Sequential()
-#     model.add(tfl.Reshape((window_size, 1)))
-#     if type == "RNN":
-#         model.add(tfl.SimpleRNN(units, return_sequences=True, input_shape=[None, 1])),
-#     model.add(tfl.TimeDistributed(tfl.Dense(horizon))),
-#     model.add(tfl.SimpleRNN(units, return_sequences=False, input_shape=[None, 1])),
-#     model.add(tfl.Dense(horizon))
-
-#     return model
