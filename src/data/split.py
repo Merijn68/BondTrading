@@ -12,8 +12,8 @@ def split_data(
         df = df[columns]
     test_perc = 1 - train_perc
     n = len(df)
-    df_train = df[0 : int(n * train_perc)]
-    df_test = df[int(n * (1 - test_perc)) :]
+    df_train = df[0 : int(n * train_perc)].copy()
+    df_test = df[int(n * (1 - test_perc)) :].copy()
     tpc = train_perc * 100
 
     logger.info(
