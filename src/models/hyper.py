@@ -1,7 +1,6 @@
 from typing import Dict
 
 import tensorflow as tf
-import tensorflow.keras.layers as tfl
 
 from ray import tune
 from ray.tune import JupyterNotebookReporter
@@ -11,72 +10,75 @@ import numpy as np
 
 
 from src.data import window
+from src.models import base_model
 
 
-class HyperRnn(tf.keras.Model):
-    def __init__(self: tf.keras.Model, config: Dict) -> None:
-        super().__init__()
+# class HyperRnn(tf.keras.Model):
+#     def __init__(self: tf.keras.Model, config: Dict) -> None:
+#         super().__init__()
 
-        # reshape 2D input into 3D data only if input is 2d.
-        self.reshape = tfl.Reshape((config["window"], config["features"]))
+#         # reshape 2D input into 3D data only if input is 2d.
+#         self.reshape = tfl.Reshape((config["window"], config["features"]))
 
-        # one convolution
-        if config["filters"] == 0:
-            self._convolutional_layers = False
-        else:
-            self._convolutional_layers = True
+#         # one convolution
+#         if config["filters"] == 0:
+#             self._convolutional_layers = False
+#         else:
+#             self._convolutional_layers = True
 
-        self.conv = tfl.Conv1D(
-            filters=config["filters"],
-            kernel_size=config["kernel"],
-            activation=config["activation"],
-            strides=1,
-            padding="same",
-        )
+#         self.conv = tfl.Conv1D(
+#             filters=config["filters"],
+#             kernel_size=config["kernel"],
+#             activation=config["activation"],
+#             strides=1,
+#             padding="same",
+#         )
 
-        layertype: str = config["type"]
-        units: int = config["units"]
-        if layertype == "LSTM":
-            # self.cell = tfl.LSTM
-            self.cell = tfl.LSTM
-        elif layertype == "GRU":
-            # self.cell = tfl.GRU
-            self.cell = tfl.GRU
-        else:
-            self.cell = tfl.SimpleRNN
+#         layertype: str = config["type"]
+#         units: int = config["units"]
+#         if layertype == "LSTM":
+#             # self.cell = tfl.LSTM
+#             self.cell = tfl.LSTM
+#         elif layertype == "GRU":
+#             # self.cell = tfl.GRU
+#             self.cell = tfl.GRU
+#         else:
+#             self.cell = tfl.SimpleRNN
 
-        self.hidden = []
+#         self.hidden = []
 
-        if config["hidden"] > 1:
-            for _ in range(config["hidden"] - 1):
-                self.hidden += [self.cell(units=units, return_sequences=True)]
+#         if config["hidden"] > 1:
+#             for _ in range(config["hidden"] - 1):
+#                 self.hidden += [self.cell(units=units, return_sequences=True)]
 
-            # Try to see if adding a timedistributed dense layer
-            if config["timeDistributed"]:
-                self.hidden += [tfl.TimeDistributed(tfl.Dense(config["horizon"]))]
+#             # Try to see if adding a timedistributed dense layer
+#             if config["timeDistributed"]:
+#                 self.hidden += [tfl.TimeDistributed(tfl.Dense(config["horizon"]))]
 
-        # dropout on last layer
-        if "dropout" in config:
-            dropout = config["dropout"]
-        else:
-            dropout = 0
-        # Last output cells should not return sequence
-        self.hidden = [self.cell(units, return_sequences=False, dropout=dropout)]
+#         # dropout on last layer
+#         if "dropout" in config:
+#             dropout = config["dropout"]
+#         else:
+#             dropout = 0
+#         # Last output cells should not return sequence
+#         self.hidden = [self.cell(units, return_sequences=False, dropout=dropout)]
 
-        self.out = tfl.Dense(config["horizon"])
-        # self.out = tfl.TimeDistributed(tfl.Dense(config["horizon"]))
+#         self.out = tfl.Dense(config["horizon"])
+#         # self.out = tfl.TimeDistributed(tfl.Dense(config["horizon"]))
 
-    def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
-        x = self.reshape(x)
-        if self._convolutional_layers:
-            x = self.conv(x)
-        for layer in self.hidden:
-            x = layer(x)
-        x = self.out(x)
-        return x
+#     def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
+#         x = self.reshape(x)
+#         if self._convolutional_layers:
+#             x = self.conv(x)
+#         for layer in self.hidden:
+#             x = layer(x)
+#         x = self.out(x)
+#         return x
 
 
-def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> HyperRnn:
+def train_hypermodel(
+    train: np.ndarray, test: np.ndarray, config: Dict
+) -> base_model.RnnModel:
 
     window_size = config["window"]
     batch_size = 32
@@ -108,7 +110,7 @@ def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> Hyper
         return learning_rate
 
     lrs = tf.keras.callbacks.LearningRateScheduler(scheduler)
-    model = HyperRnn(config)
+    model = base_model.RnnModel(config)
     model.compile(loss="mse", optimizer=tf.keras.optimizers.Adam(), metrics=["mae"])
 
     callbacks = [

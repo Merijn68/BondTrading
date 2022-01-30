@@ -8,7 +8,6 @@ import numpy as np
 
 def naivepredict(
     series: np.ndarray,
-    horizon: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray]:
     y = series[1:]
     yhat = series[:-1]
@@ -80,6 +79,9 @@ class RnnModel(BaseModel):
     def __init__(self: BaseModel, name: str, config: Dict) -> None:
         super().__init__(name, config)
 
+        config.setdefault("features", 1)
+        self.input_layer = tf.keras.layers.Input([None, config["features"]])
+
         config.setdefault("type", "RNN")
         layertype: str = config["type"]
         if layertype == "LSTM":
@@ -108,19 +110,11 @@ class RnnModel(BaseModel):
         for _ in range(config["hidden"] - 1):
             self.hidden += [self.cell(units=config["units"], return_sequences=True)]
 
-        # Try to see if adding a timedistributed dense layer helps
-        config.setdefault("timeDistributed", False)
-        if config["timeDistributed"]:
-            self.out = [tfl.TimeDistributed(tfl.Dense(config["horizon"]))]
-            return_sequences = True
-        else:
-            return_sequences = False
-
-        # Last output cells should return sequence if time distributed model (vector-to-vector)
+        # Last output cells return_sequence is set to False
         self.hidden += [
             self.cell(
                 config["units"],
-                return_sequences=return_sequences,
+                return_sequences=False,
                 dropout=config["dropout"],
             )
         ]

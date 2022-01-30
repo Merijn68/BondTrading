@@ -255,24 +255,25 @@ def plot_example(
     for sample, ax in zip(samples, axes.flatten()):
 
         if x.ndim > 2:  # More features : Eerste feature is het signaal
-            ax.plot(input_indices, x[sample][:, 0], marker=".", c="blue")
+            series = x[sample][:, 0]
         else:
-            ax.plot(input_indices, x[sample], marker=".", c="blue")
-
-        ax.plot(label_indices, y[sample], marker=".", c="green")
-        ax.scatter(
-            label_indices, y[sample], edgecolors="k", label="Labels", c="green", s=64
-        )
+            series = x[sample]
+        ax.plot(input_indices, series, marker=".", c="blue", label="x waarde")
+        ax.plot(label_indices, y[sample], marker=".", c="green", label="y waarde")
+        ax.scatter(label_indices, y[sample], edgecolors="k", c="green", s=64)
         if np.any(yhat):
             ax.scatter(
                 label_indices,
                 yhat[sample],
+                label="Voorspelling",
                 marker="X",
                 edgecolors="k",
-                label="predictions",
                 c="#ff7f0e",
                 s=64,
             )
+
+        lines1, labels1 = ax.get_legend_handles_labels()
+        ax.legend(lines1, labels1, loc="upper left")
 
     fig.tight_layout()
     plt.savefig(Path(figurepath, model.name + ".svg"), bbox_inches="tight")
