@@ -10,7 +10,7 @@ from ray.tune.schedulers import AsyncHyperBandScheduler
 import numpy as np
 
 
-from src.models import window
+from src.data import window
 
 
 class HyperRnn(tf.keras.Model):
@@ -60,7 +60,7 @@ class HyperRnn(tf.keras.Model):
             dropout = config["dropout"]
         else:
             dropout = 0
-        # Last output cells should also return sequence
+        # Last output cells should not return sequence
         self.hidden = [self.cell(units, return_sequences=False, dropout=dropout)]
 
         self.out = tfl.Dense(config["horizon"])

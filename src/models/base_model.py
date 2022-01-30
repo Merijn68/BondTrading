@@ -1,8 +1,7 @@
-from typing import Tuple, List
+from typing import Tuple, Dict
+from pathlib import Path
 
-from tensorflow.keras.models import Sequential
 import tensorflow.keras.layers as tfl
-
 import tensorflow as tf
 import numpy as np
 
@@ -23,75 +22,147 @@ def calc_mae_for_horizon(
     """calculate mean difference between naive prediction and y at horizon"""
     maelist = []
     for x, y in train_set:
-        x1 = x[:, -1]  # get the last value of every batch
+        # get the last value of every batch
+        x1 = x[:, -1]
         if x1.ndim > 1:
-            x1 = x1[:, 0]  # get only the signal
-        size = tf.size(x1)  # this will be the batchsize, so mostly 32
-        yhat = tf.broadcast_to(tf.reshape(x1, [size, 1]), [size, horizon])  # broadcast
-        mae = np.mean(np.abs(yhat - y))  # calculate mae
+            # get only the signal
+            x1 = x1[:, 0]
+        # this will be the batchsize, so mostly 32
+        size = tf.size(x1)
+        # broadcast
+        yhat = tf.broadcast_to(tf.reshape(x1, [size, 1]), [size, horizon])
+        # calculate mae
+        mae = np.mean(np.abs(yhat - y))
         maelist.append(mae)
     norm = np.mean(maelist)
     return norm
 
 
-# # Base line class predicts waarde t+1 = waarde t
-# class Baseline(tf.keras.Model):
-#     def __init__(self: tf.keras.Model, horizon: int, size: int):
-#         super().__init__()
+# def simple_model(
+#     window_size: int = 32,
+#     units: int = 1,
+#     type="RNN",
+#     horizon: int = 1,
+# ):
+#     """A simple model for time series analyses"""
 
-#     def call(self, inputs):
+#     model = Sequential()
+#     model.add(tfl.Reshape((window_size, 1)))
+#     if type == "RNN":
+#         model.add(tfl.SimpleRNN(units)),
+#     model.add(tfl.Dense(horizon))
 
-#         horizon = self._horizon
-#         size = self._size
-#         x1 = x[:, -1]
-
-#         yhat = tf.broadcast_to(tf.reshape(x1, [size, 1]), [size, horizon])
-#         return outputs
-
-
-# def naivenorm(series: np.ndarray, horizon: int) -> float:
-#     X = series[:horizon]  # noqa: N806
-#     Y = series[1:]  # noqa: N806
-#     maelist: List[ndarray] = []
-#     for i, x in enumerate(X):
-#         y = Y[i : i + horizon]  # noqa E203
-#         yhat = [x] * horizon
-#         mae = np.mean(np.abs(y - yhat))
-#         maelist.append(mae)
-#     return np.mean(maelist)
+#     return model
 
 
-def simple_model(
-    window_size: int = 32,
-    units: int = 1,
-    type="RNN",
-    horizon: int = 1,
-):
-    """A simple model for time series analyses"""
+class BaseModel(tf.keras.Model):
+    def __init__(self: tf.keras.Model, name: str, config: Dict) -> None:
+        super().__init__(name=name)
 
-    model = Sequential()
-    model.add(tfl.Reshape((window_size, 1)))
-    if type == "RNN":
-        model.add(tfl.SimpleRNN(units)),
-    model.add(tfl.Dense(horizon))
+        self.__path = Path("../data/models/")
 
-    return model
+        self.__config = config
+        self.out = tfl.Dense(config["horizon"])
+
+        # reshape 2D input into 3D data only if input is 2d.
+        config.setdefault("features", 1)
+        self.reshape = tfl.Reshape((config["window"], config["features"]))
+
+    def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
+        x = self.reshape(x)
+        x = tfl.Flatten()(x)
+        x = self.out(x)
+        return x
+
+    @property
+    def config(self):
+        return self.__config
+
+    @config.setter
+    def config(self: tf.keras.Model, config: Dict):
+        self.__config = config
+
+    def save_weights(self):
+        # Save the weights
+        path = Path(self.__path, self.name)
+        super().save_weights(path)
+
+    def load_weights(self):
+        # load the weights
+        path = Path(self.__path, self.name)
+        super().load_weights(path)
 
 
-def time_distributed(
-    window_size: int = 32,
-    units: int = 1,
-    type="RNN",
-    horizon: int = 1,
-):
-    """A simple model for time series analyses with time distributed dense layer"""
+class RnnModel(BaseModel):
+    def __init__(self: BaseModel, name: str, config: Dict) -> None:
+        super().__init__(name, config)
 
-    model = Sequential()
-    model.add(tfl.Reshape((window_size, 1)))
-    if type == "RNN":
-        model.add(tfl.SimpleRNN(units, return_sequences=True, input_shape=[None, 1])),
-    model.add(tfl.TimeDistributed(tfl.Dense(horizon))),
-    model.add(tfl.Flatten()),
-    model.add(tfl.Dense(horizon))
+        config.setdefault("type", "RNN")
+        layertype: str = config["type"]
+        if layertype == "LSTM":
+            self.cell = tfl.LSTM
+        elif layertype == "GRU":
+            self.cell = tfl.GRU
+        else:
+            self.cell = tfl.SimpleRNN
 
-    return model
+        config.setdefault("filters", 0)
+        config.setdefault("kernel", 1)
+        config.setdefault("activation", None)
+
+        self.conv = tfl.Conv1D(
+            filters=config["filters"],
+            kernel_size=config["kernel"],
+            activation=config["activation"],
+            strides=1,
+            padding="same",
+        )
+
+        config.setdefault("units", 1)
+        config.setdefault("hidden", 0)
+        config.setdefault("dropout", 0)
+        self.hidden = []
+        for _ in range(config["hidden"] - 1):
+            self.hidden += [self.cell(units=config["units"], return_sequences=True)]
+
+        # Try to see if adding a timedistributed dense layer helps
+        config.setdefault("timeDistributed", False)
+        if config["timeDistributed"]:
+            self.hidden += [tfl.TimeDistributed(tfl.Dense(config["horizon"]))]
+
+        # Last output cells should not return sequence
+        self.hidden += [
+            self.cell(
+                config["units"], return_sequences=False, dropout=config["dropout"]
+            )
+        ]
+
+    def call(self: BaseModel, x: tf.Tensor) -> tf.Tensor:
+
+        x = self.reshape(x)
+        if self.config["filters"] >= 1:
+            x = self.conv(x)
+        for layer in self.hidden:
+            x = layer(x)
+        x = self.out(x)
+
+        return x
+
+
+# def time_distributed(
+#     window_size: int = 32,
+#     units: int = 1,
+#     type="RNN",
+#     horizon: int = 1,
+# ):
+#     """A simple model for time series analyses with time distributed dense layer"""
+
+#     model = Sequential()
+#     model.add(tfl.Reshape((window_size, 1)))
+#     if type == "RNN":
+#         model.add(tfl.SimpleRNN(units, return_sequences=True, input_shape=[None, 1])),
+#     model.add(tfl.TimeDistributed(tfl.Dense(horizon))),
+#     model.add(tfl.SimpleRNN(units, return_sequences=False, input_shape=[None, 1])),
+#     model.add(tfl.Dense(horizon))
+
+#     return model
