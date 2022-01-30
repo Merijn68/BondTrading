@@ -208,7 +208,7 @@ def impute_yield(
 
     # Herberekenen actual dt -> zodat deze in lijn is met de inflatie data
     # (geen rekening houden met holidays)
-    df["offset"] = df["timeband"].str.extract("(\d+)")
+    df["offset"] = df["timeband"].str.extract(r"(\d+)")
     df["actual_dt"] = df["rate_dt"] + df["offset"].astype("timedelta64[Y]")
 
     # De timeband omzetten naar een timedelta.
@@ -288,7 +288,7 @@ def impute_inflation(
     df = df[~df["inflation"].isnull()].copy()
 
     # Translate timeband to actual_dt
-    df["offset"] = df["timeband"].str.extract("(\d+)")
+    df["offset"] = df["timeband"].str.extract(r"(\d+)")
     df["actual_dt"] = df["rate_dt"] + df["offset"].astype("timedelta64[Y]")
 
     # De timeband omzetten naar een timedelta.
@@ -415,12 +415,12 @@ def read_pkl(
             filepath = Path(path, name + ".csv")
             if filepath.exists():
                 if data:
-                    df.read_csv(
+                    df = pd.read_csv(
                         filepath, parse_date=data["date_cols"], dtype=data["dtypes"]
                     )
                 else:
                     logger.info(f"Metadata missing for file {name}")
-                    df.read_csv(filepath, data)
+                    df = pd.read_csv(filepath, data)
             else:
                 logger.error(f"File {path} not found")
         else:
