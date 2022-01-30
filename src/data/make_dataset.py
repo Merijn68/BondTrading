@@ -101,7 +101,7 @@ def impute_bonds(
 
     # Fill missing issuer_rating met meest voorkomende waarde per issuer name
     # voor nu verwijderen we deze bonds
-    df = df[~df["issue_rating"].isnull()]
+    df = df[~df["issue_rating"].isnull()].copy()
 
     # Nice name for presentations
     df["issue"] = (
@@ -147,13 +147,11 @@ def impute_price(
 
     logger.info("Impute bond price")
 
-    # data van 31-12 is een duplicaat van 30-12. Deze verwijderen
-    from datetime import date
+    # data van laatste werkdag is een duplicaat van de vorige dag. Deze verwijderen
+    s = pd.date_range("2010-01-01", periods=12, freq="BY")
+    df = df[~df["rate_dt"].isin(s)].copy()
 
-    df["lastday"] = df["rate_dt"].dt.year.apply(lambda x: date(x, 12, 31))
-    df = df[df["rate_dt"] != df["lastday"]].copy()
-    df.drop("lastday", axis="columns")
-    # 99.999 is een 'default'. Deze verwijderen we
+    # 99.999 is een 'default' waarde. Deze verwijderen we ook
     df = df[df["mid"] != 99.999]
 
     return df
@@ -327,43 +325,6 @@ def make_data():
     save_pkl("bpy", df_bpy)
 
 
-# def fulljoin(
-#     df_bonds: pd.DataFrame,
-#     df_price: pd.DataFrame,
-#     df_inflation: pd.DataFrame,
-#     df_yield: pd.DataFrame,
-#     df_countryspread: pd.DataFrame,
-# ) -> pd.DataFrame:
-
-#     # Join bond price
-#     df = join_price(df_bonds, df_price)
-
-
-#     # Join inflation
-#     df_inflation_pivot = pd.pivot(df_inflation, index = ['country','rate_dt'], columns = ['timeband'], values = 'inflation')
-#     df_inflation_pivot.columns = [''.join(('inflation_',col)).replace('YEARS','').replace('YEAR','').strip() for col in df_inflation_pivot.columns]
-#     columns = df_inflation_pivot.columns.to_list()
-#     columns.sort(key=lambda x: int(x[10:]))
-#     df_inflation_pivot = df_inflation_pivot[columns]
-
-#     df = df.merge(df_inflation_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
-#     # Join yield
-#     df_yield_pivot = pd.pivot(df_yield, index = ['country','rate_dt'], columns = ['timeband'], values = ['bid','offer'])
-#     df_yield_pivot.columns = [''.join(('yield_',''.join(tup))).replace('YEARS','').replace('YEAR','').strip() for tup in df_yield_pivot.columns]
-#     columns = df_yield_pivot.columns.to_list()
-#     columns.sort(key=lambda x: int(x[6:].replace('bid','').replace('offer','')))
-#     df_yield_pivot = df_yield_pivot[columns]
-
-#     df = df.merge(df_yield_pivot, left_on = ['country','rate_dt'], right_index=True, how = 'inner')
-
-#     # Join country spread
-#     df_countryspread = pd.pivot(df_countryspread, index = ['rate_dt'], columns = ['timeband'])
-
-
-#     return df
-
-
 def save_pkl(name: str, df: pd.DataFrame, protocol: int = 4):
     """Store processed data"""
     logger.info(f"Save preprocessed {name} data")
@@ -376,20 +337,20 @@ def save_pkl(name: str, df: pd.DataFrame, protocol: int = 4):
         dtype = {}
         for column in df.columns:
             if column in df.select_dtypes(include=[np.datetime64]).columns:
-                dtype[column] = "string"
+                dtype[column] = "float"
             elif column in df.select_dtypes(include=[np.float64]).columns:
                 dtype[column] = "float"
             elif column in df.select_dtypes(include=[np.int64]).columns:
                 dtype[column] = "int"
             else:
-                dtype[column] = "object"
+                dtype[column] = "string"
         data["dtype"] = dtype
         data["parse_dates"] = df.select_dtypes(include=[np.datetime64]).columns.tolist()
 
         f = open(f"../data/processed/{name}.json", "w")
         json.dump(data, f)
         f.close()
-        df.to_csv(f"../data/processed/{name}.csv")
+        df.to_csv(f"../data/processed/{name}.csv", index=False)
 
     except Exception as error:
         logger.error(f"Error saving {name} data: {error}")
@@ -416,7 +377,7 @@ def read_pkl(
             if filepath.exists():
                 if data:
                     df = pd.read_csv(
-                        filepath, parse_date=data["date_cols"], dtype=data["dtypes"]
+                        filepath, parse_dates=data["parse_dates"], dtype=data["dtype"]
                     )
                 else:
                     logger.info(f"Metadata missing for file {name}")
@@ -431,49 +392,3 @@ def read_pkl(
                 df = pd.read_pickle(path)
 
     return df
-
-
-# def read_single_bond(
-#     isin:   str,
-#     train_perc  :  float = 0.70,
-#     val_perc    :  float = 0.20,
-#     test_perc   :  float = 0.10,
-# ) -> pd.DataFrame:
-
-#     df = read_pkl('price')
-#     df = df[df['reference_identifier'] == isin]
-#     df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
-
-#     df_train = df_train.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
-#     df_val = df_val.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
-#     df_test = df_test.drop(['ccy','reference_identifier','rate_dt'], axis = 'columns')
-
-#     return (df_train, df_val, df_test)
-
-# def read_bond_with_features(
-#     isin        :   str,
-#     features    :   List[str] = [],
-#     train_perc  :   float = 0.70,
-#     val_perc    :   float = 0.20,
-#     test_perc   :   float = 0.10,
-#     label_var   :   str = 'mid',
-#     time_var    :   str = 'rate_dt'
-# ) -> pd.DataFrame:
-
-#     df_price = read_pkl('price')
-#     df_bonds = read_pkl('bonds')
-
-#     # Select a single bond
-#     df_bonds = df_bonds[df_bonds['isin'] == isin]
-#     df_price = df_price[df_price['reference_identifier'] == isin]
-
-#     df = build_simple_input(df_bonds, df_price )
-
-#     if features:
-#         variables = [label_var, *features]
-#         df = df.filter(variables)
-
-#     df_train, df_val, df_test = split_data(df, train_perc, val_perc, test_perc)
-
-
-#     return (df_train, df_val, df_test)
