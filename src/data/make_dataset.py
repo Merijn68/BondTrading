@@ -336,7 +336,9 @@ def save_pkl(name: str, df: pd.DataFrame, protocol: int = 4):
         data = {}
         dtype = {}
         for column in df.columns:
-            if column in df.select_dtypes(include=[np.datetime64]).columns:
+            if column in df.select_dtypes(include=np.timedelta64).columns:
+                dtype[column] = "float"
+            elif column in df.select_dtypes(include=[np.datetime64]).columns:
                 dtype[column] = "float"
             elif column in df.select_dtypes(include=[np.float64]).columns:
                 dtype[column] = "float"
