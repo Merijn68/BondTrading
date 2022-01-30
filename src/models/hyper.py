@@ -110,7 +110,7 @@ def train_hypermodel(
         return learning_rate
 
     lrs = tf.keras.callbacks.LearningRateScheduler(scheduler)
-    model = base_model.RnnModel(config)
+    model = base_model.RnnModel("hyper", config)
     model.compile(loss="mse", optimizer=tf.keras.optimizers.Adam(), metrics=["mae"])
 
     callbacks = [
