@@ -159,7 +159,7 @@ def hypertune(
         local_dir=config["local_dir"],
         stop={"training_iteration": config["epochs"]},
         num_samples=config["samples"],
-        # resources_per_trial={"cpu": 2, "gpu": 1}, # Check if this is needed on COLAB
+        resources_per_trial={"cpu": 2, "gpu": 1},  # Check if this is needed on COLAB
         config=config,
     )
     return analysis
