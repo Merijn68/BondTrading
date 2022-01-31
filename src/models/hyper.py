@@ -81,9 +81,9 @@ def train_hypermodel(
 ) -> base_model.RnnModel:
 
     window_size = config["window"]
-    batch_size = 32
-    shuffle_buffer = 2
-    horizon = 1
+    batch_size = config["batch_size"]
+    shuffle_buffer = config["shuffle_buffer"]
+    horizon = config["horizon"]
 
     train_set = window.windowed_dataset(
         train, window_size, batch_size, shuffle_buffer, horizon=horizon
