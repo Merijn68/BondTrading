@@ -23,7 +23,7 @@ def yield_to_maturity(df_bp: pd.DataFrame, df_yield: pd.DataFrame) -> pd.DataFra
         columns={"mid": "ytm"}
     )
     df = df_bp.merge(df_y, on=["country", "rate_dt"], how="inner")
-    df = df[df["time"].dt.days > df.remain_duration]
+    df = df[df["time"] > df.remain_duration]
     df = df.sort_values(by=["reference_identifier", "rate_dt", "time"])
     df = df.groupby(["reference_identifier", "rate_dt"]).first()
     df = df.reset_index()

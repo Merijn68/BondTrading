@@ -209,8 +209,8 @@ def impute_yield(
     df["offset"] = df["timeband"].str.extract(r"(\d+)")
     df["actual_dt"] = df["rate_dt"] + df["offset"].astype("timedelta64[Y]")
 
-    # De timeband omzetten naar een timedelta.
-    df["time"] = df["actual_dt"] - df["rate_dt"]
+    # De timeband omzetten naar aantal dagen.
+    df["time"] = (df["actual_dt"] - df["rate_dt"]).dt.days
     df = df.drop(columns="offset")
 
     # Bereken alvast de mid rate
@@ -289,12 +289,26 @@ def impute_inflation(
     df["offset"] = df["timeband"].str.extract(r"(\d+)")
     df["actual_dt"] = df["rate_dt"] + df["offset"].astype("timedelta64[Y]")
 
-    # De timeband omzetten naar een timedelta.
-    df["time"] = df["actual_dt"] - df["rate_dt"]
+    # De timeband omzetten naar aantal dagen.
+    df["time"] = (df["actual_dt"] - df["rate_dt"]).dt.days
 
     df = df.drop(columns="offset")
 
     return df
+
+
+def make_isin(
+    df_bp: pd.DataFrame, df_yield: pd.DataFrame, df_inflation: pd.DataFrame
+) -> pd.DataFrame:
+    isin = "NL0011220108"  # 10 Years NL Bond, maturity 2025 0.25% coupon
+    df_isin = df_bp[df_bp["reference_identifier"] == isin]
+    df_isin = join_data.join_yield(df_isin, df_yield)
+    df_isin = join_data.yield_to_maturity(df_isin, df_yield)
+    df_isin = build_features.add_estimated_bond_price(df_isin)
+    df_isin = build_features.add_term_spread(df_isin)
+    df_isin = build_features.add_bid_offer_spread(df_isin)
+    df_isin = join_data.join_10y_inflation(df_isin, df_inflation, country="Germany")
+    return df_isin
 
 
 def make_data():
@@ -321,35 +335,9 @@ def make_data():
     save_pkl("bp", df_bp)
 
     # ISIN preprocessed data for a single bond
-    isin = "NL0011220108"  # 10 Years NL Bond, maturity 2025 0.25% coupon
-    df_isin = df_bp[df_bp["reference_identifier"] == isin]
-    df_isin = join_data.join_yield(df_isin, df_yield)
-    df_isin = join_data.yield_to_maturity(df_isin, df_yield)
-    df_isin = build_features.add_estimated_bond_price(df_isin)
-    df_isin = build_features.add_term_spread(df_isin)
-    df_isin = build_features.add_bid_offer_spread(df_isin)
-    df_isin = join_data.join_10y_inflation(df_isin, df_inflation, country="Germany")
+    df_isin = make_isin(df_bp, df_yield, df_inflation)
+
     save_pkl("isin", df_isin)
-
-    # # Bond price yield
-    # df_bpy = join_data.join_yield(df_bp, df_yield)
-    # df_bpy = build_features.add_term_spread(df_bpy)
-    # df_bpy = build_features.add_bid_offer_spread(df_bpy)
-    # save_pkl("bpy", df_bpy)
-
-    # # reference bonds
-    # df_mature_2025 = df_bp.loc[(df_bp["mature_dt"].dt.year == 2025)]
-    # filter = (
-    #     (df_mature_2025["coupon"] > 0)
-    #     & (df_mature_2025["rate_dt"] > "1-jun-2016")
-    #     & (df_mature_2025["country"] != "Netherlands")
-    # )
-    # df_mature_2025 = df_mature_2025.loc[filter]
-    # df_r = df_mature_2025.pivot(
-    #     index="rate_dt", columns="reference_identifier", values="mid"
-    # ).dropna(axis="columns")
-    # df_bpyir = df_bpyi.merge(df_r, on="rate_dt", how="inner")
-    # save_pkl("bpyir", df_bpyir)
 
 
 def save_pkl(name: str, df: pd.DataFrame, protocol: int = 4):
@@ -363,13 +351,9 @@ def save_pkl(name: str, df: pd.DataFrame, protocol: int = 4):
         data = {}
         dtype = {}
         for column in df.columns:
-            if column in df.select_dtypes(include=np.timedelta64).columns:
+            if column in df.select_dtypes(include=[np.datetime64, np.float]).columns:
                 dtype[column] = "float"
-            elif column in df.select_dtypes(include=[np.datetime64]).columns:
-                dtype[column] = "float"
-            elif column in df.select_dtypes(include=[np.float64]).columns:
-                dtype[column] = "float"
-            elif column in df.select_dtypes(include=[np.int64]).columns:
+            elif column in df.select_dtypes(include=[np.int64, np.integer]).columns:
                 dtype[column] = "int"
             else:
                 dtype[column] = "string"
