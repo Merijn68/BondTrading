@@ -54,9 +54,6 @@ def get_bond_data(
     ]:
         df[column] = df[column].astype("string")
 
-    # for column in ['issue_dt','first_coupon_date','mature_dt' ]:
-    #    df[column] = pd.to_datetime(df[column])
-
     # Remove trailing spaces
     for col in ["isin", "coupon_frq", "country_name", "issuer_name"]:
         df[col] = df[col].str.strip()

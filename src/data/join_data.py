@@ -1,6 +1,4 @@
-"""
-    Handy routines to join datasets
-"""
+""" Handy routines to join datasets """
 
 import pandas as pd
 
