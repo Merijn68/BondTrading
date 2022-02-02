@@ -1,40 +1,8 @@
-from typing import Tuple, Dict
+from typing import Dict
 from pathlib import Path
 
 import tensorflow.keras.layers as tfl
 import tensorflow as tf
-import numpy as np
-
-
-def naivepredict(
-    series: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    y = series[1:]
-    yhat = series[:-1]
-    return y, yhat
-
-
-def calc_mae_for_horizon(
-    train_set: np.ndarray,
-    horizon: int = 1,
-) -> float:
-    """calculate mean difference between naive prediction and y at horizon"""
-    maelist = []
-    for x, y in train_set:
-        # get the last value of every batch
-        x1 = x[:, -1]
-        if x1.ndim > 1:
-            # get only the signal
-            x1 = x1[:, 0]
-        # this will be the batchsize, so mostly 32
-        size = tf.size(x1)
-        # broadcast
-        yhat = tf.broadcast_to(tf.reshape(x1, [size, 1]), [size, horizon])
-        # calculate mae
-        mae = np.mean(np.abs(yhat - y))
-        maelist.append(mae)
-    norm = np.mean(maelist)
-    return norm
 
 
 class BaseModel(tf.keras.Model):
@@ -43,36 +11,45 @@ class BaseModel(tf.keras.Model):
 
         self.__path = Path("../data/models/")
 
+        config.setdefault("features", 1)
+        config.setdefault("window", 1)
+
         self.__config = config
         self.out = tfl.Dense(config["horizon"])
 
-        # reshape 2D input into 3D data only if input is 2d.
-        config.setdefault("features", 1)
+        # reshape input
         self.reshape = tfl.Reshape((config["window"], config["features"]))
 
     def call(self: tf.keras.Model, x: tf.Tensor) -> tf.Tensor:
+
         x = self.reshape(x)
         x = tfl.Flatten()(x)
         x = self.out(x)
         return x
 
+    def model(self: tf.keras.Model):
+
+        config = self.config
+        x = tfl.Input(shape=(config["window"], config["features"]))
+        return tf.keras.Model(inputs=[x], outputs=self.call(x))
+
     @property
-    def config(self):
+    def config(self: tf.keras.Model):
         return self.__config
 
     @config.setter
     def config(self: tf.keras.Model, config: Dict):
         self.__config = config
 
-    def save_weights(self):
-        # Save the weights
-        path = Path(self.__path, self.name)
-        super().save_weights(path)
+    def save(self: tf.keras.Model):
+        # Save the entire model
+        path = Path(self.__path, self.name + ".h5")
+        super().save(path)
 
-    def load_weights(self):
-        # load the weights
-        path = Path(self.__path, self.name)
-        super().load_weights(path)
+    def load(self: tf.keras.Model):
+        # load the model
+        path = Path(self.__path, self.name + ".h5")
+        super().load(path)
 
 
 class RnnModel(BaseModel):
@@ -80,7 +57,7 @@ class RnnModel(BaseModel):
         super().__init__(name, config)
 
         config.setdefault("features", 1)
-        self.input_layer = tf.keras.layers.Input([None, config["features"]])
+        self.input_layer = tfl.Input([None, config["features"]])
 
         config.setdefault("type", "RNN")
         layertype: str = config["type"]
@@ -94,7 +71,6 @@ class RnnModel(BaseModel):
         config.setdefault("filters", 0)
         config.setdefault("kernel", 1)
         config.setdefault("activation", None)
-
         self.conv = tfl.Conv1D(
             filters=config["filters"],
             kernel_size=config["kernel"],
@@ -105,27 +81,31 @@ class RnnModel(BaseModel):
 
         config.setdefault("units", 1)
         config.setdefault("hidden", 0)
-        config.setdefault("dropout", 0)
         self.hidden = []
         for _ in range(config["hidden"] - 1):
             self.hidden += [self.cell(units=config["units"], return_sequences=True)]
 
         # Last output cells return_sequence is set to False
-        self.hidden += [
-            self.cell(
-                config["units"],
-                return_sequences=False,
-                dropout=config["dropout"],
-            )
-        ]
+        self.hidden += [self.cell(config["units"], return_sequences=False)]
 
-    def call(self: BaseModel, x: tf.Tensor) -> tf.Tensor:
+        config.setdefault("dropout", 0)
+        self.dropout = tfl.Dropout(config["dropout"])
+
+    def call(self: BaseModel, x: tf.Tensor, training=False) -> tf.Tensor:
 
         x = self.reshape(x)
         if self.config["filters"] >= 1:
             x = self.conv(x)
         for layer in self.hidden:
             x = layer(x)
+        if training:
+            x = self.dropout(x, training=training)
         x = self.out(x)
 
         return x
+
+
+class RnnUpDownModel(RnnModel):
+    def __init__(self: RnnModel, name: str, config: Dict) -> None:
+        super().__init__(name, config)
+        self.out = tfl.Dense(1, activation="sigmoid")

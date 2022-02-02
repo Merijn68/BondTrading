@@ -8,12 +8,13 @@ import numpy as np
 import math
 import tensorflow as tf
 
+import re
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from pathlib import Path
 
 from xmlrpc.client import Boolean
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 
 # Generic setup parameters for Matplotlib
@@ -279,3 +280,89 @@ def plot_example(
     plt.savefig(Path(figurepath, model.name + ".svg"), bbox_inches="tight")
 
     return fig
+
+
+def plot_results(
+    result: Dict,
+    ymin: float = 0.0,
+    ymax: Optional[float] = None,
+    yscale: str = "linear",
+    moving: int = -1,
+    alpha: float = 0.5,
+    patience: int = 1,
+    subset: str = ".",
+    grid: bool = False,
+    measure: str = "loss",
+    figsize: Tuple[int, int] = (15, 10),
+) -> None:
+
+    val_measure = "val_" + measure
+    if not grid:
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+        if moving < 0:
+            move = True
+
+        for key in result.keys():
+            if bool(re.search(subset, key)):
+                ms: List[float] = result[key].history[measure]
+                if move:
+                    z = movingaverage(ms, moving)
+                    z = np.concatenate([[np.nan] * moving, z[moving:-moving]])
+                    color = next(ax1._get_lines.prop_cycler)["color"]
+                    ax1.plot(z, label=key, color=color)
+                    ax1.plot(ms, label=key, alpha=alpha, color=color)
+                else:
+                    ax1.plot(ms, label=key)
+
+                ax1.set_yscale(yscale)
+                ax1.set_ylim(ymin, ymax)
+                ax1.set_title("train")
+                valms = result[key].history[val_measure]
+
+                if move:
+                    z = movingaverage(valms, moving)
+                    z = np.concatenate([[np.nan] * moving, z[moving:-moving]])[
+                        :-patience
+                    ]
+                    color = next(ax2._get_lines.prop_cycler)["color"]
+                    ax2.plot(z, label=key, color=color)
+                    ax2.plot(valms, label=key, alpha=alpha, color=color)
+                else:
+                    ax2.plot(valms[:-patience], label=key)
+
+                ax2.set_yscale(yscale)
+                ax2.set_ylim(ymin, ymax)
+                ax2.set_title("valid")
+
+        plt.legend()
+    if grid:
+
+        keyset = list(filter(lambda x: re.search(subset, x), [*result.keys()]))
+        gridsize = int(np.ceil(np.sqrt(len(keyset))))
+
+        plt.figure(figsize=(15, 15))
+        for i, key in enumerate(keyset):
+            plt.subplot(gridsize, gridsize, i + 1)
+            ms = result[key].history[measure]
+            valms = result[key].history[val_measure]
+            plt.plot(ms, label="train")
+            plt.ylim(0, ymax)
+            plt.plot(valms, label="valid")
+            plt.title(key)
+            plt.legend()
+
+
+def movingaverage(interval: List[float], window_size: int = 32) -> List[float]:
+    ret = np.cumsum(interval, dtype=float)
+    ret[window_size:] = ret[window_size:] - ret[:-window_size]
+    return ret[window_size - 1 :] / window_size
+
+
+def naive(result: Dict, ylim: float = 2, subset: str = ".") -> None:
+    for key in result.keys():
+        if bool(re.search(subset, key)):
+            plt.plot(result[key].history["val_smae"], label=key)
+
+    plt.axhline(1.0, color="r", label="naive norm")
+    plt.ylim(0, ylim)
+    plt.legend()

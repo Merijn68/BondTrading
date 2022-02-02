@@ -8,6 +8,7 @@ def windowed_dataset(
     window_size: int,
     batch_size: int,
     shuffle_buffer: int,
+    skip: int = 0,
     horizon: int = 1,
 ) -> tf.data.Dataset:
     logger.info(
@@ -16,18 +17,21 @@ def windowed_dataset(
         + f"shuffle_buffer =  {shuffle_buffer} ,"
         + f"horizon =  {horizon}"
     )
-    # features = data.shape[1] - 1
-    ds = tf.data.Dataset.from_tensor_slices(data)
-    # shifted windows. +1 for target value
-    ds = ds.window(window_size + horizon, shift=1, drop_remainder=True)
-    # map into lists of size batch+target
-    ds = ds.flat_map(lambda w: w.batch(window_size + horizon))
-    ds = ds.shuffle(shuffle_buffer)
 
-    # number of features > 1
-    if data.ndim > 1:
-        ds = ds.map(lambda w: (w[:-horizon], w[-horizon:, 0]))
+    stretch = horizon + skip
+
+    ds = tf.data.Dataset.from_tensor_slices(data)  # features = data.shape[1] - 1
+    ds = ds.window(
+        window_size + stretch, shift=1, drop_remainder=True
+    )  # shifted windows. +1 for target value
+    ds = ds.flat_map(
+        lambda w: w.batch(window_size + stretch)
+    )  # map into lists of size batch+target
+    ds = ds.shuffle(shuffle_buffer)
+    if data.ndim > 1:  # number of features > 1
+        ds = ds.map(lambda w: (w[:-stretch], w[-horizon:, 0]))
     else:
-        # split into data and target, x and y
-        ds = ds.map(lambda w: (w[:-horizon], w[-horizon:]))
+        ds = ds.map(
+            lambda w: (w[:-stretch], w[-horizon:])
+        )  # split into data and target, x and y
     return ds.batch(batch_size).prefetch(1)
