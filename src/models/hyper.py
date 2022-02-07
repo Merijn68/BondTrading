@@ -8,9 +8,8 @@ from ray.tune.integration.keras import TuneReportCallback
 from ray.tune.schedulers import AsyncHyperBandScheduler
 import numpy as np
 
-
 from src.data import window
-from src.models.base_model import RnnModel
+from src.models.base_model import RnnModel, evaluate
 
 
 def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> RnnModel:
@@ -46,7 +45,16 @@ def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> RnnMo
 
     lrs = tf.keras.callbacks.LearningRateScheduler(scheduler)
     model = RnnModel("hyper", config)
-    model.compile(loss="mse", optimizer=tf.keras.optimizers.Adam(), metrics=["mae"])
+
+    config.setdefault("loss", "mse")
+    config.setdefault("loss_alpha", 0)
+
+    if config["loss"] == "updown":
+        loss = evaluate.custom_loss_with_threshold(config["loss_alpha"])
+    else:
+        loss = "mse"
+
+    model.compile(loss=loss, optimizer=tf.keras.optimizers.Adam(), metrics=["mae"])
 
     callbacks = [
         TuneReportCallback(

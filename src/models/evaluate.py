@@ -1,7 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple
+
 import tensorflow as tf
+import tensorflow.keras.backend as K
+
 from tqdm import tqdm
 from src.models import base_model
 
@@ -38,6 +41,33 @@ class ScaledMAE(tf.keras.metrics.Metric):
 
     def ae(self, y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
         return tf.reduce_sum(tf.abs(y_true - y_pred))
+
+
+class UpDownAccuracy(tf.keras.metrics.Metric):
+    def __init__(self, name: str = "udac", **kwargs) -> None:
+        super(UpDownAccuracy, self).__init__(name=name, **kwargs)
+        self.limit = tf.constant([0.5], dtype=tf.float32)
+        self.total = self.add_weight("accuracy", initializer="zeros")
+        self.count = self.add_weight("count", initializer="zeros")
+
+    def update_state(
+        self, y_true: tf.Tensor, y_pred: tf.Tensor, sample_weight: tf.Tensor = None
+    ) -> None:
+
+        y_true_move = tf.greater_equal(y_true, self.limit)
+        y_pred_move = tf.greater_equal(y_pred, self.limit)
+
+        # find elements where the direction of prediction and real are not the same
+        condition = tf.not_equal(y_true_move, y_pred_move)
+        condition = condition[:, 0]  # Take only True and False values
+        condition = tf.cast(condition, self.dtype)
+
+        metric = tf.reduce_sum(condition)
+        self.total.assign_add(metric)
+        self.count.assign_add(tf.cast(tf.size(y_true), self.dtype))
+
+    def result(self) -> float:
+        return self.total / self.count
 
 
 def naivepredict(
@@ -126,3 +156,39 @@ def generate_prediction(
     plt.legend()
 
     return yhat
+
+
+def custom_loss_with_threshold(alpha: int):
+    def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+
+        limit = tf.constant([0.5], dtype=tf.float32)
+
+        # Over 0.5 the rates have gone up in 10 days
+        # under 0.5 the rates have gone down
+        y_true_move = tf.greater_equal(y_true, limit)
+        y_pred_move = tf.greater_equal(y_pred, limit)
+
+        # find elements where the direction of prediction and real are not the same
+        condition = tf.not_equal(y_true_move, y_pred_move)
+        condition = condition[:, 0]  # Take only True and False values
+
+        # directional loss is a vector we fill with the results
+        direction_loss = tf.cast(condition, tf.float32)
+        direction_loss = tf.expand_dims(direction_loss, axis=-1)
+
+        # Locations to update
+        indices = tf.where(condition)
+        alpha = 1000
+
+        # updates to losses
+        updates = tf.ones_like(indices, dtype=tf.float32)
+        updates = updates * alpha
+
+        # directional loss vector
+        direction_loss = tf.tensor_scatter_nd_update(direction_loss, indices, updates)
+
+        # Custom loss = Square Err * directional loss
+        loss = K.mean(tf.multiply(K.square(y_true - y_pred), direction_loss), axis=-1)
+        return loss
+
+    return custom_loss
