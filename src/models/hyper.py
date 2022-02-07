@@ -9,7 +9,8 @@ from ray.tune.schedulers import AsyncHyperBandScheduler
 import numpy as np
 
 from src.data import window
-from src.models.base_model import RnnModel, evaluate
+from src.models import evaluate
+from src.models.base_model import RnnModel
 
 
 def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> RnnModel:
