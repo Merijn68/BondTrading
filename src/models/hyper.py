@@ -51,7 +51,7 @@ def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> RnnMo
     config.setdefault("loss_alpha", 0)
 
     if config["loss"] == "updown":
-        loss = evaluate.custom_loss_with_threshold(config["loss_alpha"])
+        loss = evaluate.directional_loss_with_alpha(config["loss_alpha"])
     else:
         loss = "mse"
 
