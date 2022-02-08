@@ -2,14 +2,14 @@
 
 Voorspellen van prijzen van staatsobligaties op basis van marktdata met behulp van Neurale Netwerken
 
-Notebooks \ 01_tijdreeksanalyse Bondprijzen     -> Introductie / Business understanding / Management samenvatting
-Notebooks \ 02_data_voorbereiding               -> Data Preperation
-Notebooks \ 03_data_exploratie                  -> Data Exploratie
-04_base_model                                   -> Eerste modellen alleen getrained op het signaal
-05_toevoegen_features                           -> Toevoegen van features om bondprijzen te voorspellen
-06_richting_voorspellen                         -> Een andere aanpak waarbij de richting van de bondprijsbeweging wordt voorspeld
+- Notebooks \ 01_tijdreeksanalyse Bondprijzen     -> Introductie / Business understanding / Management samenvatting
+- Notebooks \ 02_data_voorbereiding               -> Data Preperation
+- Notebooks \ 03_data_exploratie                  -> Data Exploratie
+- 04_base_model                                   -> Eerste modellen alleen getrained op het signaal
+- 05_toevoegen_features                           -> Toevoegen van features om bondprijzen te voorspellen
+- 06_richting_voorspellen                         -> Een andere aanpak waarbij de richting van de bondprijsbeweging wordt voorspeld
 
-Project Organization
+Project Organisatie
 ------------
         
     ├── README.md          <- The top-level README for developers using this project.
