@@ -165,8 +165,9 @@ def directional_loss_with_alpha(alpha: int):
         # under 0.5 the downward movement
         limit = tf.constant([0.5], dtype=tf.float32)
 
+        # Predicting no movement is not ok.
         y_true_move = tf.greater_equal(y_true, limit)
-        y_pred_move = tf.greater_equal(y_pred, limit)
+        y_pred_move = tf.greater(y_pred, limit)
 
         # find elements where the direction of prediction and real are not the same
         condition = tf.not_equal(y_true_move, y_pred_move)
@@ -177,7 +178,6 @@ def directional_loss_with_alpha(alpha: int):
 
         # Locations to update
         indices = tf.where(condition)
-        alpha = 1000
 
         # updates to losses
         updates = tf.ones_like(indices, dtype=tf.float32)
