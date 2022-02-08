@@ -161,20 +161,23 @@ def generate_prediction(
 def custom_loss_with_threshold(alpha: int):
     def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 
+        # Over 0.5 is upward movement
+        # under 0.5 the downward movement
         limit = tf.constant([0.5], dtype=tf.float32)
 
-        # Over 0.5 the rates have gone up in 10 days
-        # under 0.5 the rates have gone down
+        # Predicting no movement <> result to prevent straight line
         y_true_move = tf.greater_equal(y_true, limit)
-        y_pred_move = tf.greater_equal(y_pred, limit)
+        y_pred_move = tf.greater(y_pred, limit)
 
         # find elements where the direction of prediction and real are not the same
         condition = tf.not_equal(y_true_move, y_pred_move)
         condition = condition[:, 0]  # Take only True and False values
 
         # directional loss is a vector we fill with the results
-        direction_loss = tf.cast(condition, tf.float32)
-        direction_loss = tf.expand_dims(direction_loss, axis=-1)
+        # direction_loss = tf.cast(condition, tf.float32)
+        # direction_loss = tf.Variable(tf.ones_like(y_pred), dtype="float32")
+        direction_loss = tf.ones_like(y_pred, dtype="float32")
+        # direction_loss = tf.expand_dims(direction_loss, axis=-1)
 
         # Locations to update
         indices = tf.where(condition)
