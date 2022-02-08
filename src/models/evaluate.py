@@ -158,8 +158,8 @@ def generate_prediction(
     return yhat
 
 
-def custom_loss_with_threshold(alpha: int):
-    def custom_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
+def directional_loss_with_alpha(alpha: int):
+    def directional_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 
         # Over 0.5 is upward movement
         # under 0.5 the downward movement
@@ -176,7 +176,7 @@ def custom_loss_with_threshold(alpha: int):
         # directional loss is a vector we fill with the results
         # direction_loss = tf.cast(condition, tf.float32)
         # direction_loss = tf.Variable(tf.ones_like(y_pred), dtype="float32")
-        direction_loss = tf.ones_like(y_pred, dtype="float32")
+        d_loss = tf.ones_like(y_pred, dtype="float32")
         # direction_loss = tf.expand_dims(direction_loss, axis=-1)
 
         # Locations to update
@@ -188,10 +188,10 @@ def custom_loss_with_threshold(alpha: int):
         updates = updates * alpha
 
         # directional loss vector
-        direction_loss = tf.tensor_scatter_nd_update(direction_loss, indices, updates)
+        d_loss = tf.tensor_scatter_nd_update(d_loss, indices, updates)
 
         # Custom loss = Square Err * directional loss
-        loss = K.mean(tf.multiply(K.square(y_true - y_pred), direction_loss), axis=-1)
+        loss = K.mean(tf.multiply(K.square(y_true - y_pred), d_loss), axis=-1)
         return loss
 
-    return custom_loss
+    return directional_loss
