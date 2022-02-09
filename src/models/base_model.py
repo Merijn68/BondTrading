@@ -6,6 +6,8 @@ import tensorflow as tf
 
 
 class BaseModel(tf.keras.Model):
+    """Base class for timeseries"""
+
     def __init__(self: tf.keras.Model, name: str, config: Dict) -> None:
         super().__init__(name=name)
 
@@ -53,6 +55,8 @@ class BaseModel(tf.keras.Model):
 
 
 class RnnModel(BaseModel):
+    """Hypertunable class for RNN Network for timeseries"""
+
     def __init__(self: BaseModel, name: str, config: Dict) -> None:
         super().__init__(name, config)
 
@@ -106,6 +110,8 @@ class RnnModel(BaseModel):
 
 
 class RnnUpDownModel(RnnModel):
+    """RNN Network to predict Up and Down movement of timeseries"""
+
     def __init__(self: RnnModel, name: str, config: Dict) -> None:
         super().__init__(name, config)
         self.out = tfl.Dense(1, activation="sigmoid")

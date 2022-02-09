@@ -4,8 +4,8 @@ from typing import Tuple
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
-
 from tqdm import tqdm
+
 from src.models import base_model
 
 
@@ -22,7 +22,19 @@ def mase(y: np.ndarray, yhat: np.ndarray) -> float:
     return mae(y, yhat) / norm
 
 
+def naivepredict(
+    series: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Naive predict one time step"""
+
+    y = series[1:]
+    yhat = series[:-1]
+    return y, yhat
+
+
 class ScaledMAE(tf.keras.metrics.Metric):
+    """Calculate Mean Absolute Error relative to Norm"""
+
     def __init__(self, scale: float = 1.0, name: str = "smae", **kwargs) -> None:
         super(ScaledMAE, self).__init__(name=name, **kwargs)
         self.scale = scale
@@ -44,6 +56,8 @@ class ScaledMAE(tf.keras.metrics.Metric):
 
 
 class UpDownAccuracy(tf.keras.metrics.Metric):
+    """Metric to calculate percentage correct predictions of movement up and down"""
+
     def __init__(self, name: str = "udac", **kwargs) -> None:
         super(UpDownAccuracy, self).__init__(name=name, **kwargs)
         self.limit = tf.constant([0.5], dtype=tf.float32)
@@ -70,19 +84,12 @@ class UpDownAccuracy(tf.keras.metrics.Metric):
         return self.total / self.count
 
 
-def naivepredict(
-    series: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray]:
-    y = series[1:]
-    yhat = series[:-1]
-    return y, yhat
-
-
 def calc_mae_for_horizon(
     train_set: np.ndarray,
     horizon: int = 1,
 ) -> float:
-    """calculate mean difference between naive prediction and y at horizon"""
+    """calculate Mean Absolute Error at horizon"""
+
     maelist = []
     for x, y in train_set:
         # get the last value of every batch
@@ -147,7 +154,6 @@ def generate_prediction(
     yhat = np.concatenate(yhat_, axis=None)
 
     plt.figure(figsize=figsize)
-    # plt.xlim(300, 600)
     plt.plot(yhat, label="prediction")
     if series.ndim > 1:
         plt.plot(series[window:][:, 0], label="actual")
@@ -159,6 +165,11 @@ def generate_prediction(
 
 
 def directional_loss_with_alpha(alpha: int):
+    """
+    Calculate loss fucntion for directional loss
+    MSE is multiplied by alpha if direction is incorrect.
+    """
+
     def directional_loss(y_true: tf.Tensor, y_pred: tf.Tensor) -> tf.Tensor:
 
         # Over 0.5 is upward movement

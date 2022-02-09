@@ -32,13 +32,13 @@ def countplot(
     subplots: Boolean = True,
     ncols: int = 2,
     maxitems=10,
-    other_category=True,
     title: str = "",
     name: str = "countplot",
     figsize: Tuple[int, int] = figsize,
     figurepath: Path = Path("../reports/figures"),
 ) -> plt.Axes:
-    """Grouped count plot"""
+    """Grouped count (bar) plot to show categorical data"""
+
     if subplots:
         number_of_items = len(x)
         nrows = math.ceil(number_of_items / ncols)
@@ -77,6 +77,7 @@ def boxplot(
     figurepath: Path = Path("../reports/figures"),
 ) -> plt.Axes:
     """simple box plot"""
+
     plt.figure(figsize=figsize)
     if not order:
         order = data.groupby(by=[x])[y].median().iloc[::1].index
@@ -169,6 +170,7 @@ def timeplot(
     figurepath: Path = Path("../reports/figures"),
 ) -> plt.Axes:
     """Plot train and Test data in one plot"""
+
     plt.figure(figsize=figsize)
     ax = sns.lineplot(data=train, x=train.index, y=train.values)
     if x_label:
@@ -190,6 +192,7 @@ def scatterplot(
     name: str = "scatterplot",
     figurepath: Path = Path("../reports/figures"),
 ) -> plt.Axes:
+    """Simple scatterplot"""
 
     plt.figure(figsize=figsize)
     ax = sns.scatterplot(data=data, x=x, y=y, hue=hue, label=label)
@@ -207,6 +210,7 @@ def distribution(
     name: str = "distribution",
     figurepath: Path = Path("../reports/figures"),
 ) -> plt.Axes:
+    """Plot a distribution (histogram)"""
 
     plt.figure(figsize=figsize)
     ax = sns.histplot(data, x=x)
@@ -359,6 +363,8 @@ def movingaverage(interval: List[float], window_size: int = 32) -> List[float]:
 
 
 def naive(result: Dict, ylim: float = 2, subset: str = ".") -> None:
+    """Simple plot to show results from model"""
+
     for key in result.keys():
         if bool(re.search(subset, key)):
             plt.plot(result[key].history["val_smae"], label=key)

@@ -14,6 +14,7 @@ from src.models.base_model import RnnModel
 
 
 def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> RnnModel:
+    """train model based on settings in configuration dictionary"""
 
     window_size = config["window"]
     batch_size = config["batch_size"]
@@ -79,6 +80,7 @@ def train_hypermodel(train: np.ndarray, test: np.ndarray, config: Dict) -> RnnMo
 def hypertune(
     train: np.array, test: np.array, config: Dict
 ) -> tune.analysis.experiment_analysis.ExperimentAnalysis:
+    """Hypertune a model with Ray tuner"""
 
     sched = AsyncHyperBandScheduler(
         time_attr="training_iteration", max_t=200, grace_period=config["grace_period"]
@@ -103,7 +105,7 @@ def hypertune(
         local_dir=config["local_dir"],
         stop={"training_iteration": config["epochs"]},
         num_samples=config["samples"],
-        resources_per_trial={"cpu": 2, "gpu": 1},  # Check if this is needed on COLAB
+        resources_per_trial={"cpu": 2, "gpu": 1},  # Settings are for COLAB free version
         config=config,
     )
     return analysis

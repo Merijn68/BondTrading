@@ -11,6 +11,8 @@ def windowed_dataset(
     skip: int = 0,
     horizon: int = 1,
 ) -> tf.data.Dataset:
+    """Generate a windowed dataset from timeseries"""
+
     logger.info(
         f"Split windowed dataset window_size = {window_size} "
         + f"batch_size =  {batch_size}, "

@@ -120,19 +120,19 @@ def get_price(
     logger.info("Load bond price data")
 
     df = read_csv(path, parse_dates=["rate_dt"])
-    # remove special character
-    df.columns = df.columns.str.replace(" ", "")
+
+    df.columns = df.columns.str.replace(" ", "")  # remove spaces in column names
 
     # Correct columns types
     for column in ["reference_identifier", "ccy"]:
         df[column] = df[column].astype("string")
 
-    # Bid en Offer zijn overbodig want gelijk in bron systeem.
-    # Deze voegen we samen
+    # Bid and Offer are not needed as they are the same in data
+    # Merge this in a mid price
     df["mid"] = (df["bid"] + df["offer"]) / 2
     df = df.drop(["bid", "offer"], axis=1)
 
-    # Data van 30-7 zit 2x in de bron
+    # Data for 30-7-2021 is duplicated - remove this
     df = df.drop_duplicates()
     return df
 
@@ -144,11 +144,11 @@ def impute_price(
 
     logger.info("Impute bond price")
 
-    # data van laatste werkdag is een duplicaat van de vorige dag. Deze verwijderen
+    # Last day of the year contains a duplicate of the previous day - drop this
     s = pd.date_range("2010-01-01", periods=12, freq="BY")
     df = df[~df["rate_dt"].isin(s)].copy()
 
-    # 99.999 is een 'default' waarde. Deze verwijderen we ook
+    # 99.999 is a 'default' waarde. Remove this
     df = df[df["mid"] != 99.999]
 
     return df
@@ -170,14 +170,14 @@ def get_yield(
     }
 
     df = read_csv(path, parse_dates=["rate_dt", "actual_dt"])
-    # remove special character
-    df.columns = df.columns.str.replace(" ", "")
 
-    # Voeg een country_name kolom toe
+    df.columns = df.columns.str.replace(" ", "")  # remove spaces from column names
+
+    # Add country column
     for country in country_dict:
         df.loc[df["ratename"].str.contains(country), "country"] = country_dict[country]
 
-    # Data bevat meerdere waarnemingen per dag. Bewaar alleen de laatste
+    # Data contains multiple rows per day in exceptional cases. Keep only last
     df = df.groupby(["country", "rate_dt", "timeband"]).nth(-1)
     df = df.reset_index()
 
@@ -198,23 +198,20 @@ def impute_yield(
 
     logger.info("Impute yield curve")
 
-    # Drop MM curves only Bond Based curves are correct
+    # Drop MM curves only Bond Based curves are correct and usefull
     df = df[df["ratename"].str.contains("BB")].copy()
 
-    # Herberekenen actual dt -> zodat deze in lijn is met de inflatie data
-    # (geen rekening houden met holidays)
+    # Recalculate actual dt -> to keep in line with inflatie data
+    # We do not take holidays into account
     df["offset"] = df["timeband"].str.extract(r"(\d+)")
     df["actual_dt"] = df["rate_dt"] + df["offset"].astype("timedelta64[Y]")
-
-    # De timeband omzetten naar aantal dagen.
-    df["time"] = (df["actual_dt"] - df["rate_dt"]).dt.days
     df = df.drop(columns="offset")
 
-    # Bereken alvast de mid rate
-    df["mid"] = (df["bid"] + df["offer"]) / 2
-
-    # drop data voor 1-jan-2010
-    df[df["rate_dt"] >= "1-jan-2010"]
+    df["time"] = (
+        df["actual_dt"] - df["rate_dt"]
+    ).dt.days  # Timeband transformed into number of days
+    df["mid"] = (df["bid"] + df["offer"]) / 2  # Calculate mid rate
+    df[df["rate_dt"] >= "1-jan-2010"]  # drop any data before 1-jan-2010
 
     return df
 
@@ -276,28 +273,28 @@ def impute_inflation(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Impute raw inflation data"""
-
     logger.info("Impute inflation curve")
 
-    # Drop all NANs
-    df = df[~df["inflation"].isnull()].copy()
-
+    df = df[~df["inflation"].isnull()].copy()  # Drop all NANs
     # Translate timeband to actual_dt
     df["offset"] = df["timeband"].str.extract(r"(\d+)")
     df["actual_dt"] = df["rate_dt"] + df["offset"].astype("timedelta64[Y]")
-
+    df = df.drop(columns="offset")
     # De timeband omzetten naar aantal dagen.
     df["time"] = (df["actual_dt"] - df["rate_dt"]).dt.days
-
-    df = df.drop(columns="offset")
 
     return df
 
 
 def make_isin(
-    df_bp: pd.DataFrame, df_yield: pd.DataFrame, df_inflation: pd.DataFrame
+    df_bp: pd.DataFrame,
+    df_yield: pd.DataFrame,
+    df_inflation: pd.DataFrame,
+    isin: str = "NL0011220108",  # 10 Years NL Bond, maturity 2025 0.25% coupon
 ) -> pd.DataFrame:
-    isin = "NL0011220108"  # 10 Years NL Bond, maturity 2025 0.25% coupon
+    """Preprocess bonddata for a specific bond for analyses on mulitple features"""
+    logger.info(f"Create dataset for bond {isin}")
+
     df_isin = df_bp[df_bp["reference_identifier"] == isin]
     df_isin = join_data.join_yield(df_isin, df_yield)
     df_isin = join_data.yield_to_maturity(df_isin, df_yield)
@@ -309,24 +306,29 @@ def make_isin(
 
 
 def make_data():
-    """ " Generate all data preprocessing"""
+    """Generate all data preprocessing"""
+
+    # Bond header and characteristics
     df_bonds = get_bond_data()
     df_bonds = impute_bonds(df_bonds)
     save_pkl("bonds", df_bonds)
 
+    # Pricing data on daily basis
     df_price = get_price()
     df_price = impute_price(df_price)
     save_pkl("price", df_price)
 
+    # Government yield rates on daily basis
     df_yield = get_yield()
     df_yield = impute_yield(df_yield)
     save_pkl("yield", df_yield)
 
+    # Inflation curves on daily basis
     df_inflation = get_inflation()
     df_inflation = impute_inflation(df_inflation)
     save_pkl("inflation", df_inflation)
 
-    # Bond price
+    # Join Bond price with bond characteristics
     df_bp = join_data.join_price(df_bonds, df_price)
     df_bp = build_features.add_duration(df_bp)
     save_pkl("bp", df_bp)
@@ -344,7 +346,8 @@ def save_pkl(name: str, df: pd.DataFrame, protocol: int = 4):
 
         df.to_pickle(f"../data/processed/{name}.pkl", protocol=protocol)
 
-        # Include metadata
+        # Files are stored both in pickle and csv format
+        # Attribute metadata is added in json format to the csv for ease of processing
         data = {}
         dtype = {}
         for column in df.columns:
@@ -378,6 +381,8 @@ def read_pkl(
     else:
 
         if colab:
+            # Google Colab was not able to process pickled data
+            # Alternatively I store and load attribute information in JSon format
             filepath = Path(path, name + ".json")
             if filepath.exists():
                 f = open(Path(path, f"{name}.json"))
